@@ -969,6 +969,19 @@ public class DesktopCapyController: NSObject {
         autoLaunchItem.target = self
         menu.addItem(autoLaunchItem)
 
+        menu.addItem(NSMenuItem.separator())
+
+        let helpItem = NSMenuItem(title: "❓ Panduan Penggunaan & Setup AI", action: #selector(ctxOpenHelpGuide), keyEquivalent: "")
+        helpItem.target = self
+        menu.addItem(helpItem)
+
+        let updateTitle = UpdateService.shared.isUpdateAvailable
+            ? "✨ Pembaruan Tersedia (v\(UpdateService.shared.latestVersion))"
+            : "🔄 Periksa Pembaruan..."
+        let updateItem = NSMenuItem(title: updateTitle, action: #selector(ctxCheckUpdate), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         if let cv = viewWindow.contentView {
             NSMenu.popUpContextMenu(menu, with: event, for: cv)
         }
@@ -1061,6 +1074,22 @@ public class DesktopCapyController: NSObject {
         CapybaraService.shared.showDesktopBubble("autorun booting \(state)", duration: 2.8)
     }
     @objc private func ctxReturnHome() { CapybaraService.shared.returnToNotch() }
+    @objc private func ctxOpenHelpGuide() {
+        let state = IslandState.shared
+        state.isExpanded = true
+        state.isShowingOnboarding = true
+    }
+    @objc private func ctxCheckUpdate() {
+        let updater = UpdateService.shared
+        if updater.isUpdateAvailable {
+            let state = IslandState.shared
+            state.isExpanded = true
+            state.isShowingUpdateModal = true
+        } else {
+            updater.checkForUpdates(manual: true)
+            CapybaraService.shared.showDesktopBubble("Maki cek pembaruan di GitHub bentar ya.. 🔍", duration: 3.5)
+        }
+    }
 }
 
 struct DesktopCapyRootView: View {

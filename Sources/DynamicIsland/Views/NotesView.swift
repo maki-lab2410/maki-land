@@ -170,13 +170,12 @@ public struct NotesView: View {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
                     Text("(\(completedCount)/\(notesService.todos.count))")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.5))
                         .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
                 }
+                .fixedSize()
 
                 Spacer(minLength: 4)
 

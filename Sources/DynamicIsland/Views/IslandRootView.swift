@@ -41,13 +41,33 @@ public class IslandState: ObservableObject {
     @Published public var isPinned: Bool = false
     @Published public var isModalOpen: Bool = false
     @Published public var forceClearHoverTrigger: Int = 0
+    @Published public var isShowingOnboarding: Bool = false {
+        didSet { notifySize() }
+    }
+    @Published public var isShowingUpdateModal: Bool = false {
+        didSet { notifySize() }
+    }
 
     public var onSizeChange: ((CGSize) -> Void)?
     public private(set) var collapseCooldownUntil: Date = .distantPast
 
-    public init() {}
+    public init() {
+        let completed = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding_v1")
+        if !completed {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                self?.isExpanded = true
+                self?.isShowingOnboarding = true
+            }
+        }
+    }
 
     public var expandedTargetSize: CGSize {
+        if isShowingOnboarding {
+            return CGSize(width: 680, height: 260)
+        }
+        if isShowingUpdateModal {
+            return CGSize(width: 660, height: 215)
+        }
         switch selectedTab {
         case .tray:
             if let studioItem = DropZoneService.shared.activeStudioItem {
@@ -66,7 +86,7 @@ public class IslandState: ObservableObject {
                 ? CGSize(width: 660, height: 174)
                 : CGSize(width: 660, height: 156)
         case .notes:
-            return CGSize(width: 660, height: 198)
+            return CGSize(width: 680, height: 202)
         case .capy:
             return GeminiService.shared.isNotchChatMode
                 ? CGSize(width: 668, height: 258)
@@ -118,6 +138,7 @@ public struct IslandRootView: View {
     @ObservedObject var capyService = CapybaraService.shared
     @ObservedObject var calService = CalendarService.shared
     @ObservedObject var geminiService = GeminiService.shared
+    @ObservedObject var updater = UpdateService.shared
 
     @State private var isCompactHovering = false
     @State private var hoverExitWork: DispatchWorkItem? = nil
@@ -270,142 +291,186 @@ public struct IslandRootView: View {
 
     private var expandedContent: some View {
         VStack(spacing: 0) {
-            // Scrollable Tab Bar
-            HStack(spacing: 6) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 5) {
-                        ForEach(IslandTab.allCases) { tab in
-                            Button {
-                                guard state.selectedTab != tab else { return }
-                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                    state.selectedTab = tab
+            if state.isShowingOnboarding {
+                OnboardingView()
+            } else if state.isShowingUpdateModal {
+                UpdateDialogView()
+            } else {
+                // Scrollable Tab Bar
+                HStack(spacing: 6) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            ForEach(IslandTab.allCases) { tab in
+                                Button {
+                                    guard state.selectedTab != tab else { return }
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                        state.selectedTab = tab
+                                    }
+                                } label: {
+                                    HStack(spacing: 3.5) {
+                                        Image(systemName: tab.iconName)
+                                            .font(.system(size: 10, weight: .semibold))
+                                        Text(tab.rawValue)
+                                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    }
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 4.5)
+                                    .background(state.selectedTab == tab ? Color.white.opacity(0.22) : Color.white.opacity(0.06))
+                                    .foregroundColor(state.selectedTab == tab ? .white : .white.opacity(0.58))
+                                    .clipShape(Capsule())
+                                    .contentShape(Capsule())
                                 }
-                            } label: {
-                                HStack(spacing: 3.5) {
-                                    Image(systemName: tab.iconName)
-                                        .font(.system(size: 10, weight: .semibold))
-                                    Text(tab.rawValue)
-                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                }
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4.5)
-                                .background(state.selectedTab == tab ? Color.white.opacity(0.22) : Color.white.opacity(0.06))
-                                .foregroundColor(state.selectedTab == tab ? .white : .white.opacity(0.58))
-                                .clipShape(Capsule())
-                                .contentShape(Capsule())
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                // Global Mic Mute Button
-                Button {
-                    micService.toggleMute()
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: micService.isMuted ? "mic.slash.fill" : "mic.fill")
-                            .font(.system(size: 11, weight: .bold))
-                        if micService.isMuted {
-                            Text("Muted")
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                    // Update Badge (if update available)
+                    if updater.isUpdateAvailable {
+                        Button {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                state.isShowingUpdateModal = true
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                Text("Update")
+                                    .font(.system(size: 8.8, weight: .bold, design: .rounded))
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3.5)
+                            .background(Color.green.opacity(0.30))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Versi baru v\(updater.latestVersion) tersedia!")
+                    }
+
+                    // Help / Onboarding Guide Button
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            state.isShowingOnboarding = true
+                        }
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.55))
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Panduan Penggunaan & Setup API Key")
+
+                    // Global Mic Mute Button
+                    Button {
+                        micService.toggleMute()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: micService.isMuted ? "mic.slash.fill" : "mic.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            if micService.isMuted {
+                                Text("Muted")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                            }
+                        }
+                        .padding(.horizontal, micService.isMuted ? 7 : 5)
+                        .padding(.vertical, 4)
+                        .background(micService.isMuted ? Color.red.opacity(0.25) : Color.white.opacity(0.08))
+                        .foregroundColor(micService.isMuted ? .red : .white.opacity(0.55))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Pin Button
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) { state.isPinned.toggle() }
+                    } label: {
+                        Image(systemName: state.isPinned ? "pin.fill" : "pin.slash")
+                            .font(.system(size: 11))
+                            .foregroundColor(state.isPinned ? .orange : .white.opacity(0.35))
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Minimize chevron
+                    Button {
+                        state.setExpanded(false)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.45))
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 8)
+                .padding(.horizontal, 18)
+
+                // Content Area + Contextual 2D Interactive Capybara in Every Menu!
+                HStack(alignment: .center, spacing: 10) {
+                    Group {
+                        switch state.selectedTab {
+                        case .makiLand:
+                            HStack(spacing: 0) {
+                                NowPlayingView()
+                                    .frame(width: 222)
+
+                                Color.white.opacity(0.08)
+                                    .frame(width: 0.5, height: 75)
+                                    .padding(.horizontal, 8)
+
+                                CalendarGlanceView()
+                                    .frame(maxWidth: .infinity)
+                            }
+                        case .capy:
+                            CapybaraHabitatView()
+                        case .notes:
+                            NotesView()
+                        case .launcher:
+                            LauncherView()
+                        case .tray:
+                            DropZoneView()
+                        case .monitor:
+                            SystemMonitorView()
+                        case .clipboard:
+                            ClipboardView()
+                        case .timer:
+                            TimerView()
                         }
                     }
-                    .padding(.horizontal, micService.isMuted ? 7 : 5)
-                    .padding(.vertical, 4)
-                    .background(micService.isMuted ? Color.red.opacity(0.25) : Color.white.opacity(0.08))
-                    .foregroundColor(micService.isMuted ? .red : .white.opacity(0.55))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Pin Button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { state.isPinned.toggle() }
-                } label: {
-                    Image(systemName: state.isPinned ? "pin.fill" : "pin.slash")
-                        .font(.system(size: 11))
-                        .foregroundColor(state.isPinned ? .orange : .white.opacity(0.35))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                // Minimize chevron
-                Button {
-                    state.setExpanded(false)
-                } label: {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.45))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 8)
-            .padding(.horizontal, 18)
-
-            // Content Area + Contextual 2D Interactive Capybara in Every Menu!
-            HStack(alignment: .center, spacing: 10) {
-                Group {
-                    switch state.selectedTab {
-                    case .makiLand:
-                        HStack(spacing: 0) {
-                            NowPlayingView()
-                                .frame(width: 222)
-
-                            Color.white.opacity(0.08)
-                                .frame(width: 0.5, height: 75)
-                                .padding(.horizontal, 8)
-
-                            CalendarGlanceView()
-                                .frame(maxWidth: .infinity)
-                        }
-                    case .capy:
-                        CapybaraHabitatView()
-                    case .notes:
-                        NotesView()
-                    case .launcher:
-                        LauncherView()
-                    case .tray:
-                        DropZoneView()
-                    case .monitor:
-                        SystemMonitorView()
-                    case .clipboard:
-                        ClipboardView()
-                    case .timer:
-                        TimerView()
+                    if state.selectedTab != .capy {
+                        ContextualCapyView(tab: state.selectedTab)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                if state.selectedTab != .capy {
-                    ContextualCapyView(tab: state.selectedTab)
+                .padding(.horizontal, 18)
+                .padding(.top, 4)
+                .padding(.bottom, 9)
+                // Top-layer natural comic speech bubble beside Maki so AppKit NSViews (Notes/TextFields) NEVER cover it!
+                .overlay(alignment: .topTrailing) {
+                    if state.selectedTab != .capy, let tip = capyService.contextualTip {
+                        CapySpeechBubbleView(
+                            text: tip,
+                            tail: .trailing,
+                            fontSize: 9.8,
+                            maxBubbleWidth: 178
+                        )
+                        .padding(.trailing, 98)
+                        .padding(.top, 14)
+                        .transition(.scale(scale: 0.88, anchor: .trailing).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                        .zIndex(100)
+                    }
                 }
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 4)
-            .padding(.bottom, 9)
-            // Top-layer natural comic speech bubble beside Maki so AppKit NSViews (Notes/TextFields) NEVER cover it!
-            .overlay(alignment: .topTrailing) {
-                if state.selectedTab != .capy, let tip = capyService.contextualTip {
-                    CapySpeechBubbleView(
-                        text: tip,
-                        tail: .trailing,
-                        fontSize: 9.8,
-                        maxBubbleWidth: 178
-                    )
-                    .padding(.trailing, 98)
-                    .padding(.top, 14)
-                    .transition(.scale(scale: 0.88, anchor: .trailing).combined(with: .opacity))
-                    .allowsHitTesting(false)
-                    .zIndex(100)
-                }
-            }
-            .animation(.spring(response: 0.28, dampingFraction: 0.80), value: capyService.contextualTip)
+                .animation(.spring(response: 0.28, dampingFraction: 0.80), value: capyService.contextualTip)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
         }
     }
 }

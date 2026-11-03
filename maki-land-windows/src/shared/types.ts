@@ -344,6 +344,8 @@ export interface SharedAppState {
   // Island UI
   isIslandVisible: boolean;
   isExpanded: boolean;
+  isShowingOnboarding: boolean;
+  updateAvailable: { version: string; url: string; notes: string } | null;
   selectedTab: IslandTab;
   isPinned: boolean;
   isLaunchAtLogin: boolean;
@@ -448,6 +450,9 @@ export const DESKTOP_CHAT_WIDTH = 336;
 export const DESKTOP_CHAT_HEIGHT = 376;
 
 export function computeTargetIslandSize(state: SharedAppState): { width: number; height: number } {
+  if (state.isShowingOnboarding) {
+    return { width: 680, height: 260 };
+  }
   if (!state.isExpanded) {
     const showMini = state.showInCompactNotch && !state.isOnDesktop;
     return { width: showMini ? 238 : 210, height: 32 };
@@ -457,26 +462,26 @@ export function computeTargetIslandSize(state: SharedAppState): { width: number;
       const studio = state.droppedItems.find((i) => i.id === state.activeStudioItemId);
       if (studio) {
         if (studio.kind === 'pdf') return { width: 680, height: 294 };
-        if (studio.kind === 'image') return { width: 650, height: 242 };
-        return { width: 640, height: 198 };
+        if (studio.kind === 'image') return { width: 660, height: 242 };
+        return { width: 660, height: 198 };
       }
-      return { width: 640, height: 162 };
+      return { width: 660, height: 162 };
     }
     case 'maki-land':
       return state.isShowingCalendarSettings
         ? { width: 660, height: 184 }
         : { width: 660, height: 160 };
     case 'Notes':
-      return { width: 640, height: 190 };
+      return { width: 680, height: 202 };
     case 'Capy':
-      return state.isNotchChatMode ? { width: 668, height: 262 } : { width: 640, height: 188 };
+      return state.isNotchChatMode ? { width: 668, height: 262 } : { width: 660, height: 188 };
     case 'Launch':
-      return { width: 640, height: 166 };
+      return { width: 660, height: 166 };
     case 'Clipboard':
-      return { width: 640, height: 184 };
+      return { width: 660, height: 184 };
     case 'System':
-      return { width: 640, height: 198 };
+      return { width: 660, height: 198 };
     case 'Timer':
-      return { width: 640, height: 158 };
+      return { width: 660, height: 158 };
   }
 }

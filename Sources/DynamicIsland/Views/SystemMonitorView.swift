@@ -4,6 +4,7 @@ public struct SystemMonitorView: View {
     @ObservedObject var monitor = SystemMonitorService.shared
     @ObservedObject var battery = BatteryService.shared
     @ObservedObject var cleaner = CacheCleanerManager.shared
+    @ObservedObject var updater = UpdateService.shared
 
     public init() {}
 
@@ -132,6 +133,27 @@ public struct SystemMonitorView: View {
                 }
 
                 Spacer()
+
+                // Update Button (if available)
+                if updater.isUpdateAvailable {
+                    Button {
+                        IslandState.shared.isShowingUpdateModal = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 8.5, weight: .bold))
+                            Text("Update v\(updater.latestVersion)")
+                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4.5)
+                        .background(Color.green.opacity(0.30))
+                        .foregroundColor(.green)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Versi baru v\(updater.latestVersion) tersedia di GitHub!")
+                }
 
                 // Rescan
                 Button {

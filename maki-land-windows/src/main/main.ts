@@ -98,6 +98,9 @@ class MakiMainController {
   // Core UI & Companion state
   private isIslandVisible = true;
   private isExpanded = false;
+  private isShowingOnboarding = false;
+  private hasCompletedOnboarding = false;
+  private updateAvailable: { version: string; url: string; notes: string } | null = null;
   private isCompactHovering = false;
   private selectedTab: IslandTab = 'maki-land';
   private isPinned = false;
@@ -224,6 +227,14 @@ class MakiMainController {
     );
     this.cleaner.setOnChange(() => this.scheduleBroadcast());
     this.loadPersisted();
+
+    if (!this.hasCompletedOnboarding) {
+      setTimeout(() => {
+        this.isExpanded = true;
+        this.isShowingOnboarding = true;
+        this.scheduleBroadcast();
+      }, 1200);
+    }
   }
 
   private get stateFilePath(): string {
@@ -292,6 +303,9 @@ class MakiMainController {
         }
         if (Array.isArray(d.localCalendarEvents)) this.localCalendarEvents = d.localCalendarEvents;
         if (typeof d.googleICSUrl === 'string') this.googleICSUrl = d.googleICSUrl;
+        if (typeof (d as any).hasCompletedOnboarding === 'boolean') {
+          this.hasCompletedOnboarding = (d as any).hasCompletedOnboarding;
+        }
       }
     } catch {
       // ignore corrupted file
@@ -318,6 +332,7 @@ class MakiMainController {
         localCalendarEvents: this.localCalendarEvents,
         googleICSUrl: this.googleICSUrl,
       };
+      (payload as any).hasCompletedOnboarding = this.hasCompletedOnboarding;
       fs.writeFileSync(this.stateFilePath, JSON.stringify(payload, null, 2));
     } catch {
       // ignore
@@ -434,6 +449,13 @@ class MakiMainController {
 
       if (isNewer) {
         const releaseUrl = data.html_url || 'https://github.com/maki-lab2410/maki-land/releases';
+        this.updateAvailable = {
+          version: latestTag,
+          url: releaseUrl,
+          notes: data.body || '',
+        };
+        this.scheduleBroadcast();
+
         if (manual) {
           const choice = dialog.showMessageBoxSync({
             type: 'question',
@@ -447,7 +469,7 @@ class MakiMainController {
           }
         } else {
           if (this.isOnDesktop) {
-            this.showDesktopBubble(`🎉 Ada versi baru v${latestTag}! Cek di tray buat update ya~ 🐾`, 6000);
+            this.showDesktopBubble(`🎉 Ada versi baru v${latestTag}! Cek di notch atau tray buat update ya~ 🐾`, 6000);
           }
           this.studio.showBanner(`Versi baru maki-land v${latestTag} sudah rilis!`, false);
         }
@@ -1723,6 +1745,14 @@ class MakiMainController {
         click: () => this.applyAutoLaunchSetting(!this.isLaunchAtLogin),
       },
       {
+        label: '❓ Panduan Penggunaan & Setup AI',
+        click: () => {
+          this.isShowingOnboarding = true;
+          this.setExpanded(true);
+          this.scheduleBroadcast();
+        },
+      },
+      {
         label: '🔄 Periksa Pembaruan (GitHub)...',
         click: () => void this.checkForGitHubUpdates(true),
       },
@@ -1879,6 +1909,14 @@ class MakiMainController {
             `autorun booting ${this.isLaunchAtLogin ? 'aktif ⚡' : 'dimatikan'}`,
             2800
           );
+        },
+      },
+      {
+        label: '❓ Panduan Penggunaan & Setup AI',
+        click: () => {
+          this.isShowingOnboarding = true;
+          this.setExpanded(true);
+          this.scheduleBroadcast();
         },
       },
       {
@@ -2727,6 +2765,23 @@ class MakiMainController {
           },
         });
         break;
+
+      // Onboarding & Update Actions
+      case 'openOnboarding':
+        this.isShowingOnboarding = true;
+        this.setExpanded(true);
+        break;
+      case 'closeOnboarding':
+        this.isShowingOnboarding = false;
+        this.hasCompletedOnboarding = true;
+        this.savePersisted();
+        break;
+      case 'openExternalUrl':
+        if (p.url) void shell.openExternal(String(p.url));
+        break;
+      case 'checkUpdate':
+        void this.checkForGitHubUpdates(true);
+        break;
     }
     this.scheduleBroadcast();
   }
@@ -2841,6 +2896,8 @@ class MakiMainController {
         progress: this.timerTotal > 0 ? this.timerRemaining / this.timerTotal : 0,
       },
       cacheCleaner: this.cleaner.state,
+      isShowingOnboarding: this.isShowingOnboarding,
+      updateAvailable: this.updateAvailable,
     };
   }
 

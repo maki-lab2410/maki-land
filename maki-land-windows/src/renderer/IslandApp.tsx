@@ -8,6 +8,7 @@ import {
 import { dispatchMaki, extractDroppedFilePaths, useMakiState } from './bridge';
 import { Capybara2DCanvas } from './components/Capybara2DCanvas';
 import { CapySpeechBubble, ContextualCapyCard } from './components/CapySpeechBubble';
+import { OnboardingModal } from './components/OnboardingModal';
 import {
   AudioWaveform,
   CapyHabitatTab,
@@ -408,140 +409,188 @@ export const IslandApp: React.FC = () => {
                 transformOrigin: 'top center',
               }}
             >
-              {/* Top Tab Bar + Mic + Pin + Minimize */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div
-                  className="no-scrollbar"
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    gap: 4.5,
-                    overflowX: 'auto',
-                  }}
-                >
-                  {ALL_ISLAND_TABS.map((tab) => {
-                    const active = state.selectedTab === tab.id;
-                    return (
+              {state.isShowingOnboarding ? (
+                <OnboardingModal state={state} />
+              ) : (
+                <>
+                  {/* Top Tab Bar + Mic + Pin + Minimize */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div
+                      className="no-scrollbar"
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        gap: 4.5,
+                        overflowX: 'auto',
+                      }}
+                    >
+                      {ALL_ISLAND_TABS.map((tab) => {
+                        const active = state.selectedTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => void dispatchMaki('selectTab', { tab: tab.id })}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3.5,
+                              padding: '4px 8.5px',
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              background: active
+                                ? 'rgba(255,255,255,0.22)'
+                                : 'rgba(255,255,255,0.06)',
+                              color: active ? '#fff' : 'rgba(255,255,255,0.58)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <span style={{ fontSize: 10 }}>{tab.icon}</span>
+                            <span>{tab.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Update Badge (if available) */}
+                    {state.updateAvailable && (
                       <button
-                        key={tab.id}
-                        onClick={() => void dispatchMaki('selectTab', { tab: tab.id })}
+                        onClick={() => void dispatchMaki('openExternalUrl', { url: state.updateAvailable?.url })}
+                        title={`Pembaruan v${state.updateAvailable.version} tersedia di GitHub!`}
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3.5,
-                          padding: '4px 8.5px',
+                          padding: '2.5px 7px',
                           borderRadius: 99,
-                          fontSize: 10,
-                          fontWeight: 600,
-                          background: active
-                            ? 'rgba(255,255,255,0.22)'
-                            : 'rgba(255,255,255,0.06)',
-                          color: active ? '#fff' : 'rgba(255,255,255,0.58)',
-                          whiteSpace: 'nowrap',
+                          background: 'rgba(34,197,94,0.30)',
+                          color: '#4ade80',
+                          fontSize: 9,
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
                         }}
                       >
-                        <span style={{ fontSize: 10 }}>{tab.icon}</span>
-                        <span>{tab.label}</span>
+                        <span>✨</span>
+                        <span>Update</span>
                       </button>
-                    );
-                  })}
-                </div>
+                    )}
 
-                {/* Global Mic Mute Button */}
-                <button
-                  onClick={() => void dispatchMaki('toggleMicMute')}
-                  title="Mute / Unmute Mikrofon Windows"
-                  style={{
-                    padding: '3.5px 7px',
-                    borderRadius: 99,
-                    background: state.isMicMuted
-                      ? 'rgba(239,68,68,0.25)'
-                      : 'rgba(255,255,255,0.08)',
-                    color: state.isMicMuted ? '#ef4444' : 'rgba(255,255,255,0.65)',
-                    fontSize: 9.5,
-                    fontWeight: 700,
-                  }}
-                >
-                  {state.isMicMuted ? '🔇 Muted' : '🎙️'}
-                </button>
+                    {/* Help / Onboarding Guide Button */}
+                    <button
+                      onClick={() => void dispatchMaki('openOnboarding')}
+                      title="Panduan Penggunaan & Setup API Key"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 99,
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: 12,
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ❓
+                    </button>
 
-                {/* Pin Button */}
-                <button
-                  onClick={() => void dispatchMaki('togglePin')}
-                  title={state.isPinned ? 'Lepas Pin (Auto-minimize aktif)' : 'Pin agar tetap terbuka'}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 99,
-                    color: state.isPinned ? '#fb923c' : 'rgba(255,255,255,0.4)',
-                    fontSize: 11,
-                  }}
-                >
-                  📌
-                </button>
+                    {/* Global Mic Mute Button */}
+                    <button
+                      onClick={() => void dispatchMaki('toggleMicMute')}
+                      title="Mute / Unmute Mikrofon Windows"
+                      style={{
+                        padding: '3.5px 7px',
+                        borderRadius: 99,
+                        background: state.isMicMuted
+                          ? 'rgba(239,68,68,0.25)'
+                          : 'rgba(255,255,255,0.08)',
+                        color: state.isMicMuted ? '#ef4444' : 'rgba(255,255,255,0.65)',
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {state.isMicMuted ? '🔇 Muted' : '🎙️'}
+                    </button>
 
-                {/* Minimize Chevron */}
-                <button
-                  onClick={() => void dispatchMaki('expand', { expanded: false })}
-                  title="Tutup Detail (Esc)"
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 99,
-                    color: 'rgba(255,255,255,0.55)',
-                    fontSize: 11,
-                  }}
-                >
-                  ⌃
-                </button>
-              </div>
+                    {/* Pin Button */}
+                    <button
+                      onClick={() => void dispatchMaki('togglePin')}
+                      title={state.isPinned ? 'Lepas Pin (Auto-minimize aktif)' : 'Pin agar tetap terbuka'}
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 99,
+                        color: state.isPinned ? '#fb923c' : 'rgba(255,255,255,0.4)',
+                        fontSize: 11,
+                      }}
+                    >
+                      📌
+                    </button>
 
-              {/* Main Content + Contextual Maki Card */}
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'flex',
-                  alignItems: 'stretch',
-                  gap: 10,
-                  position: 'relative',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                  {state.selectedTab === 'maki-land' && <MakiLandTab state={state} />}
-                  {state.selectedTab === 'Capy' && <CapyHabitatTab state={state} />}
-                  {state.selectedTab === 'Notes' && <NotesTab state={state} />}
-                  {state.selectedTab === 'Launch' && <LauncherTab state={state} />}
-                  {state.selectedTab === 'Tray' && <TrayTab state={state} />}
-                  {state.selectedTab === 'System' && <SystemTab state={state} />}
-                  {state.selectedTab === 'Clipboard' && <ClipboardTab state={state} />}
-                  {state.selectedTab === 'Timer' && <TimerTab state={state} />}
-                </div>
+                    {/* Minimize Chevron */}
+                    <button
+                      onClick={() => void dispatchMaki('expand', { expanded: false })}
+                      title="Tutup Detail (Esc)"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 99,
+                        color: 'rgba(255,255,255,0.55)',
+                        fontSize: 11,
+                      }}
+                    >
+                      ⌃
+                    </button>
+                  </div>
 
-                {state.selectedTab !== 'Capy' && (
-                  <ContextualCapyCard tab={state.selectedTab} state={state} />
-                )}
-
-                {/* Contextual Tip Bubble beside Maki */}
-                {state.selectedTab !== 'Capy' && state.contextualTip && (
+                  {/* Main Content + Contextual Maki Card */}
                   <div
                     style={{
-                      position: 'absolute',
-                      right: 96,
-                      top: 8,
-                      zIndex: 50,
-                      pointerEvents: 'none',
+                      flex: 1,
+                      minHeight: 0,
+                      display: 'flex',
+                      alignItems: 'stretch',
+                      gap: 10,
+                      position: 'relative',
                     }}
                   >
-                    <CapySpeechBubble
-                      text={state.contextualTip}
-                      tail="right"
-                      fontSize={9.6}
-                      maxWidth={176}
-                    />
+                    <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                      {state.selectedTab === 'maki-land' && <MakiLandTab state={state} />}
+                      {state.selectedTab === 'Capy' && <CapyHabitatTab state={state} />}
+                      {state.selectedTab === 'Notes' && <NotesTab state={state} />}
+                      {state.selectedTab === 'Launch' && <LauncherTab state={state} />}
+                      {state.selectedTab === 'Tray' && <TrayTab state={state} />}
+                      {state.selectedTab === 'System' && <SystemTab state={state} />}
+                      {state.selectedTab === 'Clipboard' && <ClipboardTab state={state} />}
+                      {state.selectedTab === 'Timer' && <TimerTab state={state} />}
+                    </div>
+
+                    {state.selectedTab !== 'Capy' && (
+                      <ContextualCapyCard tab={state.selectedTab} state={state} />
+                    )}
+
+                    {/* Contextual Tip Bubble beside Maki */}
+                    {state.selectedTab !== 'Capy' && state.contextualTip && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 96,
+                          top: 8,
+                          zIndex: 50,
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <CapySpeechBubble
+                          text={state.contextualTip}
+                          tail="right"
+                          fontSize={9.6}
+                          maxWidth={176}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
         </div>

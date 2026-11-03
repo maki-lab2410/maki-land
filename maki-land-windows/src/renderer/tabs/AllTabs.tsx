@@ -686,12 +686,12 @@ export const NotesTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
 
         {/* To-Do List (Can take 50% or 100% full maximized width!) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', whiteSpace: 'nowrap', flexShrink: 0 }}>
               ✓ To-Do ({state.todos.filter((t) => !t.isDone).length})
             </span>
             {state.notesToast && (
-              <span style={{ fontSize: 8.5, color: '#fb923c' }}>{state.notesToast}</span>
+              <span style={{ fontSize: 8.5, color: '#fb923c', whiteSpace: 'nowrap' }}>{state.notesToast}</span>
             )}
             <div style={{ flex: 1 }} />
 
@@ -710,16 +710,18 @@ export const NotesTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 3,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
               title={isTodoMaximized ? 'Kembali ke tampilan bagi layar' : 'Maksimalkan To-Do satu layar penuh agar tulisan panjang terbaca semua'}
             >
-              {isTodoMaximized ? '⤡ Bagi Layar' : '⤢ Maksimalkan'}
+              {isTodoMaximized ? '⤡ Bagi' : '⤢ Penuh'}
             </button>
 
             {state.todos.some((t) => t.isDone) && (
               <button
                 onClick={() => void dispatchMaki('clearCompletedTodos')}
-                style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+                style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
                 Bersihkan ✓
               </button>
