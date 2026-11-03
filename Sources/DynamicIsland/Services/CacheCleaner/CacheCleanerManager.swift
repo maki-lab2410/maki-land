@@ -52,8 +52,9 @@ public final class CacheCleanerManager: ObservableObject {
         progressText = "Mencari cache..."
 
         let scanned = await scanner.scan { [weak self] status in
+            guard let self else { return }
             Task { @MainActor in
-                self?.progressText = status
+                self.progressText = status
             }
         }
 
@@ -89,8 +90,9 @@ public final class CacheCleanerManager: ObservableObject {
         progressText = "Membersihkan cache..."
 
         let result = await cleaner.cleanItems(target) { [weak self] item, cur, total in
+            guard let self else { return }
             Task { @MainActor in
-                self?.progressText = "Memindahkan \(cur)/\(total): \(item.name)"
+                self.progressText = "Memindahkan \(cur)/\(total): \(item.name)"
             }
         }
 

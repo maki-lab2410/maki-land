@@ -13,136 +13,19 @@ public struct CapybaraHabitatView: View {
 
     public init() {}
 
+    private var stageGradientColors: [Color] {
+        if isDropTargeted {
+            return [Color.orange.opacity(0.28), Color.black.opacity(0.45)]
+        } else if capy.isOnsenMode {
+            return [Color.cyan.opacity(0.20), Color.orange.opacity(0.10), Color.black.opacity(0.45)]
+        } else {
+            return [Color.green.opacity(0.18), Color.mint.opacity(0.08), Color.black.opacity(0.45)]
+        }
+    }
+
     public var body: some View {
         HStack(spacing: 12) {
-            // MARK: - Left: Interactive 2D Capybara Stage (Coucou-Style!)
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: isDropTargeted
-                                ? [Color.orange.opacity(0.28), Color.black.opacity(0.45)]
-                                : (capy.isOnsenMode
-                                    ? [Color.cyan.opacity(0.20), Color.orange.opacity(0.10), Color.black.opacity(0.45)]
-                                    : [Color.green.opacity(0.18), Color.mint.opacity(0.08), Color.black.opacity(0.45)]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(isDropTargeted ? Color.orange : Color.white.opacity(0.12), lineWidth: isDropTargeted ? 1.2 : 0.7)
-                    )
-
-                // Soft meadow / pond floor glow
-                Ellipse()
-                    .fill(capy.isOnsenMode ? Color.cyan.opacity(0.18) : Color.green.opacity(0.20))
-                    .frame(width: gemini.isNotchChatMode ? 114 : 148, height: 22)
-                    .padding(.bottom, 7)
-
-                // Cozy snug comic speech bubble / hint fixed cleanly at top of stage
-                VStack(spacing: 0) {
-                    if let bubble = capy.speechBubble {
-                        CapySpeechBubbleView(
-                            text: bubble,
-                            tail: .bottom,
-                            fontSize: gemini.isNotchChatMode ? 9.0 : 9.8,
-                            maxBubbleWidth: gemini.isNotchChatMode ? 132 : 196
-                        )
-                        .transition(.scale(scale: 0.88, anchor: .bottom).combined(with: .opacity))
-                    } else {
-                        Text(statusHintText)
-                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.68))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(gemini.isNotchChatMode ? 2 : 1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.horizontal, 8)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.top, 5)
-                .animation(.spring(response: 0.28, dampingFraction: 0.80), value: capy.speechBubble)
-                .allowsHitTesting(false)
-                .zIndex(20)
-
-                // Grounded 2D Interactive Maki Character
-                ZStack {
-                    Capybara2DView(
-                        role: .habitat,
-                        action: capy.currentAction,
-                        orangesOnHead: capy.orangesOnHead,
-                        isOnsen: capy.isOnsenMode && !gemini.isNotchChatMode,
-                        isListeningMusic: music.currentTrack.isPlaying,
-                        isFocusing: timer.isRunning,
-                        isDangling: false,
-                        isMouthOpenForDrop: isDropTargeted || capy.isMouthOpenForDrop,
-                        lookVector: capy.lookVector,
-                        lastSquishTime: capy.lastSquishTime,
-                        facingRight: gemini.isNotchChatMode ? true : capy.facingRight,
-                        mascotModel: capy.mascotModel
-                    )
-                    .frame(width: gemini.isNotchChatMode ? 98 : 108, height: gemini.isNotchChatMode ? 84 : 92)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        capy.pet()
-                        if capy.currentAction == .happyPet {
-                            triggerHeartBurst()
-                        }
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: 16)
-                            .onChanged { val in
-                                if !didPopOutDrag && val.translation.height > 40 {
-                                    didPopOutDrag = true
-                                    capy.releaseToDesktop(at: NSEvent.mouseLocation)
-                                }
-                            }
-                            .onEnded { val in
-                                if !didPopOutDrag && abs(val.translation.width) > 16 {
-                                    capy.walkTo(offsetX: capy.posX + val.translation.width * 0.6)
-                                }
-                                didPopOutDrag = false
-                            }
-                    )
-
-                    if capy.currentAction == .sleeping {
-                        Text("zZz")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundColor(.cyan.opacity(0.85))
-                            .offset(x: 34, y: -26)
-                            .allowsHitTesting(false)
-                    }
-
-                    if music.currentTrack.isPlaying {
-                        Text("♪ ♫")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.green)
-                            .offset(x: -38, y: -24)
-                            .allowsHitTesting(false)
-                    }
-
-                    if showHeartParticle {
-                        HStack(spacing: 5) {
-                            Text("❤️").font(.system(size: 12))
-                            Text("✨").font(.system(size: 10))
-                        }
-                        .offset(y: -32)
-                        .allowsHitTesting(false)
-                    }
-                }
-                .padding(.bottom, gemini.isNotchChatMode ? 8 : 3)
-                .offset(x: gemini.isNotchChatMode ? 0 : capy.posX * 0.45)
-                .animation(.spring(response: 0.70, dampingFraction: 0.82), value: capy.posX)
-            }
-            .frame(width: gemini.isNotchChatMode ? 144 : 226)
-            .frame(maxHeight: .infinity)
-            .onDrop(of: DropZoneService.supportedDropUTTypes, isTargeted: $isDropTargeted) { providers in
-                if gemini.isNotchChatMode {
-                    return handleChatDropProviders(providers)
-                }
-                return capy.handleDroppedProviders(providers)
-            }
+            stageView
 
             // MARK: - Right: Either Gemini AI Chat OR Care & Desktop Companion Controls!
             if gemini.isNotchChatMode {
@@ -152,6 +35,133 @@ public struct CapybaraHabitatView: View {
             }
         }
         .padding(.vertical, 5)
+    }
+
+    // MARK: - Left: Interactive 2D Capybara Stage (Coucou-Style!)
+    private var stageView: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: stageGradientColors, startPoint: .top, endPoint: .bottom))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isDropTargeted ? Color.orange : Color.white.opacity(0.12), lineWidth: isDropTargeted ? 1.2 : 0.7)
+                )
+
+            // Soft meadow / pond floor glow
+            Ellipse()
+                .fill(capy.isOnsenMode ? Color.cyan.opacity(0.18) : Color.green.opacity(0.20))
+                .frame(width: gemini.isNotchChatMode ? 114 : 148, height: 22)
+                .padding(.bottom, 7)
+
+            stageSpeechHeader
+
+            stageCharacterView
+                .padding(.bottom, gemini.isNotchChatMode ? 8 : 3)
+                .offset(x: gemini.isNotchChatMode ? 0 : capy.posX * 0.45)
+                .animation(.spring(response: 0.70, dampingFraction: 0.82), value: capy.posX)
+        }
+        .frame(width: gemini.isNotchChatMode ? 144 : 226)
+        .frame(maxHeight: .infinity)
+        .onDrop(of: DropZoneService.supportedDropUTTypes, isTargeted: $isDropTargeted) { providers in
+            if gemini.isNotchChatMode {
+                return handleChatDropProviders(providers)
+            }
+            return capy.handleDroppedProviders(providers)
+        }
+    }
+
+    private var stageSpeechHeader: some View {
+        VStack(spacing: 0) {
+            if let bubble = capy.speechBubble {
+                CapySpeechBubbleView(
+                    text: bubble,
+                    tail: .bottom,
+                    fontSize: gemini.isNotchChatMode ? 9.0 : 9.8,
+                    maxBubbleWidth: gemini.isNotchChatMode ? 132 : 196
+                )
+                .transition(.scale(scale: 0.88, anchor: .bottom).combined(with: .opacity))
+            } else {
+                Text(statusHintText)
+                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.68))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(gemini.isNotchChatMode ? 2 : 1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 8)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 5)
+        .animation(.spring(response: 0.28, dampingFraction: 0.80), value: capy.speechBubble)
+        .allowsHitTesting(false)
+        .zIndex(20)
+    }
+
+    private var stageCharacterView: some View {
+        ZStack {
+            Capybara2DView(
+                role: .habitat,
+                action: capy.currentAction,
+                orangesOnHead: capy.orangesOnHead,
+                isOnsen: capy.isOnsenMode && !gemini.isNotchChatMode,
+                isListeningMusic: music.currentTrack.isPlaying,
+                isFocusing: timer.isRunning,
+                isDangling: false,
+                isMouthOpenForDrop: isDropTargeted || capy.isMouthOpenForDrop,
+                lookVector: capy.lookVector,
+                lastSquishTime: capy.lastSquishTime,
+                facingRight: gemini.isNotchChatMode ? true : capy.facingRight,
+                mascotModel: capy.mascotModel
+            )
+            .frame(width: gemini.isNotchChatMode ? 98 : 108, height: gemini.isNotchChatMode ? 84 : 92)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                capy.pet()
+                if capy.currentAction == .happyPet {
+                    triggerHeartBurst()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 16)
+                    .onChanged { val in
+                        if !didPopOutDrag && val.translation.height > 40 {
+                            didPopOutDrag = true
+                            capy.releaseToDesktop(at: NSEvent.mouseLocation)
+                        }
+                    }
+                    .onEnded { val in
+                        if !didPopOutDrag && abs(val.translation.width) > 16 {
+                            capy.walkTo(offsetX: capy.posX + val.translation.width * 0.6)
+                        }
+                        didPopOutDrag = false
+                    }
+            )
+
+            if capy.currentAction == .sleeping {
+                Text("zZz")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(.cyan.opacity(0.85))
+                    .offset(x: 34, y: -26)
+                    .allowsHitTesting(false)
+            }
+
+            if music.currentTrack.isPlaying {
+                Text("♪ ♫")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.green)
+                    .offset(x: -38, y: -24)
+                    .allowsHitTesting(false)
+            }
+
+            if showHeartParticle {
+                HStack(spacing: 5) {
+                    Text("❤️").font(.system(size: 12))
+                    Text("✨").font(.system(size: 10))
+                }
+                .offset(y: -32)
+                .allowsHitTesting(false)
+            }
+        }
     }
 
     private var habitatControlsColumn: some View {

@@ -56,13 +56,16 @@ jobs:
           </plist>
           EOF
           codesign --force --deep -s - DynamicIsland.app
+          hdiutil create -volname "maki-land" -srcfolder DynamicIsland.app -ov -format UDZO DynamicIsland-macOS.dmg
           zip -qr DynamicIsland-macOS.zip DynamicIsland.app
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: DynamicIsland-macOS.zip
+          path: |
+            DynamicIsland-macOS.dmg
+            DynamicIsland-macOS.zip
 
   # ==========================================
   # 2. Build Windows Installer & Portable
@@ -106,16 +109,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-app
+          path: release-artifacts
 
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-release
+          path: release-artifacts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            DynamicIsland-macOS.zip
-            *.exe
+          files: release-artifacts/*
           generate_release_notes: true
