@@ -353,6 +353,12 @@ export const DesktopApp: React.FC = () => {
                 fn: () => void dispatchMaki('toggleOnsen'),
               },
               {
+                icon: '🧹',
+                active: state.cacheCleaner?.isCleaning,
+                title: 'Sapu Bersih Cache Aman ke Recycle Bin (Maki Clean)',
+                fn: () => void dispatchMaki('cleanCache'),
+              },
+              {
                 icon: state.desktopRoamEnabled ? '🚶' : '📌',
                 active: !state.desktopRoamEnabled,
                 title: state.desktopRoamEnabled

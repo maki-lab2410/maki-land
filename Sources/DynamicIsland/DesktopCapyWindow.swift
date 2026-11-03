@@ -926,6 +926,10 @@ public class DesktopCapyController: NSObject {
         orangeItem.target = self
         menu.addItem(orangeItem)
 
+        let cleanItem = NSMenuItem(title: "🧹 Bersihkan Cache Aman (Maki Clean)", action: #selector(ctxCleanCache), keyEquivalent: "")
+        cleanItem.target = self
+        menu.addItem(cleanItem)
+
         let modelMenu = NSMenu(title: "Model Tampilan")
         let classicItem = NSMenuItem(title: "🐾 Maki Klasik", action: #selector(ctxSwitchModel(_:)), keyEquivalent: "")
         classicItem.tag = 0
@@ -1007,6 +1011,31 @@ public class DesktopCapyController: NSObject {
     }
     @objc private func ctxOnsen() { CapybaraService.shared.toggleOnsen() }
     @objc private func ctxOranges() { CapybaraService.shared.cycleOrangeOnHead() }
+    @objc public func ctxCleanCache() {
+        let capy = CapybaraService.shared
+        let cleaner = CacheCleanerManager.shared
+        capy.showDesktopBubble("Hup! Tunggu bentar ya, Maki bersihkan sampah cache dulu~ 🧹", duration: 3.5)
+        capy.currentAction = .happyPet
+
+        Task {
+            let result = await cleaner.cleanSafeItems()
+            await MainActor.run {
+                if result.totalBytesFreed > 0 {
+                    NSSound(named: "Glass")?.play()
+                    capy.xp += 10
+                    capy.mood = min(100, capy.mood + 5)
+                    capy.showDesktopBubble("Selesai! Berhasil memindahkan \(result.formattedTotalFreed) sampah ke Tong Sampah! 🐾✨", duration: 4.5)
+                } else {
+                    capy.showDesktopBubble("Laptopmu udah kinclong, nggak ada cache yang perlu dibuang! ✨", duration: 3.5)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if capy.currentAction == .happyPet {
+                        capy.currentAction = .chill
+                    }
+                }
+            }
+        }
+    }
     @objc private func ctxToggleRoam() {
         CapybaraService.shared.desktopRoamEnabled.toggle()
         if !CapybaraService.shared.desktopRoamEnabled {
@@ -1136,6 +1165,9 @@ struct DesktopCapyRootView: View {
                 }
                 quickDockBtn("♨️", active: capy.isOnsenMode, help: capy.isOnsenMode ? "Selesai Berendam Onsen" : "Berendam Onsen Air Hangat") {
                     capy.toggleOnsen()
+                }
+                quickDockBtn("🧹", help: "Sapu Cache & Sampah Aman (Maki Clean)") {
+                    DesktopCapyController.shared.ctxCleanCache()
                 }
                 quickDockBtn(capy.desktopRoamEnabled ? "🚶" : "📌", active: !capy.desktopRoamEnabled, help: capy.desktopRoamEnabled ? "Sedang Bebas Jalan (Klik untuk Kunci Posisi)" : "Posisi Dikunci (Klik agar Bebas Jalan)") {
                     capy.desktopRoamEnabled.toggle()

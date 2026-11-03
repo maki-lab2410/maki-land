@@ -43,7 +43,7 @@ public struct NotesView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 3)
         .onReceive(notesService.focusRequest) { target in
             focusedField = target
         }
@@ -53,9 +53,9 @@ public struct NotesView: View {
         Group {
             if isTodoMaximized {
                 todoColumnView
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 2)
             } else {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     scratchpadColumnView
                     Color.white.opacity(0.08)
                         .frame(width: 0.5)
@@ -160,32 +160,40 @@ public struct NotesView: View {
 
     // MARK: - Right Column (or Full Width): To-Do List
     private var todoColumnView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 HStack(spacing: 4) {
                     Image(systemName: "checklist")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.green)
-                    Text("To-Do")
+                    Text("To\u{2011}Do")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Text("(\(completedCount)/\(notesService.todos.count))")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.5))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if completedCount > 0 {
                     Button {
                         withAnimation { notesService.clearCompleted() }
                     } label: {
                         Text("Bersihkan")
-                            .font(.system(size: 8.8, weight: .medium))
+                            .font(.system(size: 8.5, weight: .medium, design: .rounded))
                             .foregroundColor(.orange.opacity(0.85))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.12))
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .help("Bersihkan yang selesai (⇧⌘D)")
+                    .help("Bersihkan tugas yang selesai (⇧⌘D)")
                 }
 
                 // Maximize / Split Toggle Button (⤢ / ⤡)
@@ -197,7 +205,7 @@ public struct NotesView: View {
                     HStack(spacing: 2.5) {
                         Image(systemName: isTodoMaximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                             .font(.system(size: 7.8, weight: .bold))
-                        Text(isTodoMaximized ? "Bagi Layar" : "Maksimalkan")
+                        Text(isTodoMaximized ? "Bagi" : "Penuh")
                             .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                     }
                     .padding(.horizontal, 6)
@@ -232,14 +240,14 @@ public struct NotesView: View {
             }
 
             // Add Todo Row
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 TextField("Tambah tugas baru... (⌘N)", text: $newTodoText)
                     .focused($focusedField, equals: .todoInput)
                     .textFieldStyle(.plain)
                     .font(.system(size: 10, design: .rounded))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                     .background(Color.white.opacity(0.08))
                     .cornerRadius(6)
                     .onSubmit {
@@ -258,72 +266,65 @@ public struct NotesView: View {
             }
 
             // Scrollable To-Do list with clean multi-line wrapping and detail expansion
-            ScrollView(.vertical, showsIndicators: true) {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(notesService.todos.enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .top, spacing: 6) {
-                            Button {
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                    notesService.toggleTodo(id: item.id)
+                    if notesService.todos.isEmpty {
+                        VStack(spacing: 3) {
+                            Text("Belum ada tugas")
+                                .font(.system(size: 9.8, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.35))
+                            Text("Tekan ⌘N atau ketik di atas")
+                                .font(.system(size: 8.5, design: .rounded))
+                                .foregroundColor(.white.opacity(0.2))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 14)
+                    } else {
+                        ForEach(Array(notesService.todos.enumerated()), id: \.element.id) { index, item in
+                            HStack(alignment: .top, spacing: 7) {
+                                Button {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        notesService.toggleTodo(id: item.id)
+                                    }
+                                } label: {
+                                    Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 11.5, weight: .semibold))
+                                        .foregroundColor(item.isDone ? .green : .white.opacity(0.45))
+                                        .padding(.top, 1)
                                 }
-                            } label: {
-                                Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(item.isDone ? .green : .white.opacity(0.42))
-                                    .padding(.top, 1)
-                            }
-                            .buttonStyle(.plain)
+                                .buttonStyle(.plain)
 
-                            // Title with multi-line wrapping and click-to-open detail
-                            VStack(alignment: .leading, spacing: 1) {
+                                // Title with clean multi-line typography and click-to-open detail
                                 Text(item.title)
-                                    .font(.system(size: 9.8, weight: .medium, design: .rounded))
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
                                     .strikethrough(item.isDone, color: .white.opacity(0.4))
-                                    .foregroundColor(item.isDone ? .white.opacity(0.4) : .white)
+                                    .foregroundColor(item.isDone ? .white.opacity(0.45) : .white)
                                     .lineLimit(isTodoMaximized ? nil : 2)
-                                    .lineSpacing(1.3)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineSpacing(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         selectedTodoDetail = item
                                     }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            // Expand / Magnify button if text is long
-                            if item.title.count > 25 || item.title.contains("\n") {
+                                // Neat delete button on right
                                 Button {
-                                    selectedTodoDetail = item
+                                    withAnimation { notesService.deleteTodo(id: item.id) }
                                 } label: {
-                                    Image(systemName: "doc.text.magnifyingglass")
-                                        .font(.system(size: 8.5))
-                                        .foregroundColor(.cyan.opacity(0.75))
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.35))
+                                        .padding(.top, 2)
+                                        .padding(.horizontal, 2)
                                 }
                                 .buttonStyle(.plain)
-                                .help("Lihat teks lengkap tugas ini")
+                                .help("Hapus tugas ini (atau ⌥\(index + 1) untuk centang)")
                             }
-
-                            if index < 9 {
-                                Text("⌥\(index + 1)")
-                                    .font(.system(size: 7.8, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.white.opacity(0.24))
-                                    .padding(.top, 1)
-                            }
-
-                            Button {
-                                withAnimation { notesService.deleteTodo(id: item.id) }
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.white.opacity(0.3))
-                                    .padding(.top, 1)
-                            }
-                            .buttonStyle(.plain)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4.5)
+                            .background(Color.white.opacity(item.isDone ? 0.025 : 0.055))
+                            .cornerRadius(6)
                         }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.white.opacity(0.04))
-                        .cornerRadius(6)
                     }
                 }
             }

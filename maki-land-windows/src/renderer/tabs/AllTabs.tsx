@@ -1482,6 +1482,17 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
 // 6. 📊 System Monitor Tab
 export const SystemTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   const s = state.system;
+  const cc = state.cacheCleaner || {
+    isScanning: false,
+    isCleaning: false,
+    totalSafeBytes: 0,
+    formattedSafeSize: '0 KB',
+    lastFreedBytes: 0,
+    formattedFreedSize: '0 KB',
+    progressText: '',
+    hasCompletedInitialScan: false,
+  };
+
   const cards = [
     {
       title: 'CPU Windows',
@@ -1507,38 +1518,160 @@ export const SystemTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: 9, width: '100%', height: '100%', alignItems: 'center' }}>
-      {cards.map((c) => (
-        <div
-          key={c.title}
-          style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 12,
-            padding: '9px 11px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 5,
-          }}
-        >
-          <div style={{ fontSize: 9.2, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
-            {c.title}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, width: '100%', height: '100%', justifyContent: 'center' }}>
+      {/* Top Row: System Metrics */}
+      <div style={{ display: 'flex', gap: 9, width: '100%', alignItems: 'center' }}>
+        {cards.map((c) => (
+          <div
+            key={c.title}
+            style={{
+              flex: 1,
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              borderRadius: 12,
+              padding: '7px 11px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <div style={{ fontSize: 9.2, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+              {c.title}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>{c.val}</div>
+            <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.1)' }}>
+              <div
+                style={{
+                  width: `${Math.max(3, Math.min(100, c.pct))}%`,
+                  height: '100%',
+                  borderRadius: 99,
+                  background: c.color,
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.5)' }}>{c.sub}</div>
           </div>
-          <div style={{ fontSize: 13.5, fontWeight: 800 }}>{c.val}</div>
-          <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.1)' }}>
+        ))}
+      </div>
+
+      {/* Bottom Card: Maki Cache Cleaner (Opsi 2) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '6px 10px',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 11,
+          gap: 10,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 99,
+              background: 'rgba(249, 115, 22, 0.20)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            ✨
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>
+                Pembersih Cache Aman (Maki Clean)
+              </span>
+              <span
+                style={{
+                  fontSize: 7.8,
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  background: 'rgba(34, 197, 94, 0.16)',
+                  color: '#4ade80',
+                  fontWeight: 600,
+                }}
+              >
+                Recycle Bin
+              </span>
+            </div>
             <div
               style={{
-                width: `${Math.max(3, Math.min(100, c.pct))}%`,
-                height: '100%',
-                borderRadius: 99,
-                background: c.color,
+                fontSize: 8.5,
+                color: cc.isCleaning ? '#fb923c' : cc.lastFreedBytes > 0 ? '#4ade80' : 'rgba(255,255,255,0.65)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
-            />
+            >
+              {cc.isScanning
+                ? (cc.progressText || 'Memindai cache...')
+                : cc.isCleaning
+                ? (cc.progressText || 'Memindahkan ke Recycle Bin...')
+                : cc.lastFreedBytes > 0
+                ? `Baru dibersihkan: ${cc.formattedFreedSize} dibuang ke Recycle Bin ✨`
+                : `${cc.formattedSafeSize} cache aman terdeteksi (Temp, Chrome/Edge, npm)`}
+            </div>
           </div>
-          <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.5)' }}>{c.sub}</div>
         </div>
-      ))}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {/* Refresh / Rescan Button */}
+          <button
+            onClick={() => void dispatchMaki('scanCache')}
+            disabled={cc.isScanning || cc.isCleaning}
+            title="Pindai ulang cache"
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 99,
+              background: 'rgba(255,255,255,0.08)',
+              border: 'none',
+              color: '#fff',
+              fontSize: 11,
+              cursor: (cc.isScanning || cc.isCleaning) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: (cc.isScanning || cc.isCleaning) ? 0.4 : 1,
+            }}
+          >
+            🔄
+          </button>
+
+          {/* Clean Button */}
+          <button
+            onClick={() => void dispatchMaki('cleanCache')}
+            disabled={cc.isCleaning || cc.totalSafeBytes === 0}
+            title="Pindahkan cache aman ke Recycle Bin"
+            style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              background: (cc.totalSafeBytes === 0 || cc.isCleaning)
+                ? 'rgba(255,255,255,0.06)'
+                : 'linear-gradient(135deg, #ea580c, #f97316)',
+              border: 'none',
+              color: '#fff',
+              fontSize: 9.5,
+              fontWeight: 700,
+              cursor: (cc.totalSafeBytes === 0 || cc.isCleaning) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              opacity: (cc.totalSafeBytes === 0 || cc.isCleaning) ? 0.45 : 1,
+            }}
+          >
+            <span>🧹</span>
+            <span>{cc.isCleaning ? 'Menyapu...' : 'Sapu Aman'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

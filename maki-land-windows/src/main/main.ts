@@ -47,6 +47,7 @@ import {
 } from './windowsSystemBridge';
 import { StudioService } from './studioService';
 import { GeminiManager } from './geminiService';
+import { WindowsCacheCleanerService } from './cacheCleanerService';
 
 // --- Single-Instance Lock (Prevents Duplicate Windows on Boot / Double-Click) ---
 const gotLock = app.requestSingleInstanceLock();
@@ -92,6 +93,7 @@ class MakiMainController {
 
   private studio: StudioService;
   private gemini: GeminiManager;
+  private cleaner = WindowsCacheCleanerService.getInstance();
 
   // Core UI & Companion state
   private isIslandVisible = true;
@@ -220,6 +222,7 @@ class MakiMainController {
         this.scheduleBroadcast();
       }
     );
+    this.cleaner.setOnChange(() => this.scheduleBroadcast());
     this.loadPersisted();
   }
 
@@ -1380,6 +1383,33 @@ class MakiMainController {
     this.savePersisted();
   }
 
+  public async cleanCacheInteractive() {
+    this.registerSquish();
+    this.currentAction = 'brushed';
+    this.emitAllBubbles('Hup! Tunggu bentar ya, Maki bersihkan sampah cache dulu~ 🧹', this.isOnDesktop);
+    this.scheduleBroadcast();
+
+    const result = await this.cleaner.cleanSafeCache((step) => {
+      if (this.isOnDesktop) {
+        this.desktopBubble = step;
+        this.scheduleBroadcast();
+      }
+    });
+
+    if (result.freedBytes > 0) {
+      this.xp += 10;
+      this.mood = Math.min(100, this.mood + 5);
+      const freedStr = this.cleaner.formatBytes(result.freedBytes);
+      this.emitAllBubbles(`Selesai! Berhasil memindahkan ${freedStr} sampah ke Recycle Bin! 🐾✨`, this.isOnDesktop);
+    } else {
+      this.emitAllBubbles('Laptopmu udah kinclong, nggak ada cache yang perlu dibuang! ✨', this.isOnDesktop);
+    }
+
+    this.savePersisted();
+    this.scheduleActionReset(2500);
+    this.scheduleBroadcast();
+  }
+
   public toggleOnsen() {
     this.walkTarget = null;
     this.isChasingCursor = false;
@@ -1784,6 +1814,10 @@ class MakiMainController {
       {
         label: `🍊 Tumpuk Jeruk (${this.orangesOnHead}/3)`,
         click: () => this.cycleOranges(),
+      },
+      {
+        label: '🧹 Bersihkan Cache Aman (Maki Clean)',
+        click: () => void this.cleanCacheInteractive(),
       },
       {
         label: `🎨 Model Tampilan: ${this.mascotModel === 'plushie' ? '🧸 Boneka' : '🐾 Klasik'}`,
@@ -2609,6 +2643,12 @@ class MakiMainController {
         break;
 
       // Gemini AI Chat ("Tanya Maki")
+      case 'scanCache':
+        void this.cleaner.startScan();
+        break;
+      case 'cleanCache':
+        void this.cleanCacheInteractive();
+        break;
       case 'openNotchChat':
         this.gemini.isNotchChatMode = true;
         this.selectedTab = 'Capy';
@@ -2800,6 +2840,7 @@ class MakiMainController {
         formattedTime: this.formatSeconds(this.timerRemaining),
         progress: this.timerTotal > 0 ? this.timerRemaining / this.timerTotal : 0,
       },
+      cacheCleaner: this.cleaner.state,
     };
   }
 

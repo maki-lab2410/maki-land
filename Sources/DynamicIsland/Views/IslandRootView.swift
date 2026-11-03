@@ -55,28 +55,30 @@ public class IslandState: ObservableObject {
                 case .pdf:
                     return CGSize(width: 680, height: 294)
                 case .image:
-                    return CGSize(width: 650, height: 242)
+                    return CGSize(width: 660, height: 242)
                 case .other:
-                    return CGSize(width: 640, height: 198)
+                    return CGSize(width: 660, height: 198)
                 }
             }
-            return CGSize(width: 640, height: 158)
+            return CGSize(width: 660, height: 162)
         case .makiLand:
             return CalendarService.shared.isShowingSettings
                 ? CGSize(width: 660, height: 174)
                 : CGSize(width: 660, height: 156)
         case .notes:
-            return CGSize(width: 640, height: 186)
+            return CGSize(width: 660, height: 198)
         case .capy:
             return GeminiService.shared.isNotchChatMode
                 ? CGSize(width: 668, height: 258)
-                : CGSize(width: 640, height: 184)
+                : CGSize(width: 660, height: 184)
         case .launcher:
-            return CGSize(width: 640, height: 162)
+            return CGSize(width: 660, height: 164)
         case .clipboard:
-            return CGSize(width: 640, height: 180)
-        case .monitor, .timer:
-            return CGSize(width: 640, height: 154)
+            return CGSize(width: 660, height: 184)
+        case .timer:
+            return CGSize(width: 660, height: 158)
+        case .monitor:
+            return CGSize(width: 660, height: 198)
         }
     }
 
@@ -384,7 +386,7 @@ public struct IslandRootView: View {
             }
             .padding(.horizontal, 18)
             .padding(.top, 4)
-            .padding(.bottom, 6)
+            .padding(.bottom, 9)
             // Top-layer natural comic speech bubble beside Maki so AppKit NSViews (Notes/TextFields) NEVER cover it!
             .overlay(alignment: .topTrailing) {
                 if state.selectedTab != .capy, let tip = capyService.contextualTip {

@@ -422,10 +422,22 @@ export interface SharedAppState {
   trayBusy: boolean;
   trayBanner: { message: string; isError: boolean } | null;
 
-  // System, Clipboard, Timer
+  // System, Clipboard, Timer, Cache Cleaner
   system: SystemMetrics;
   clipboardHistory: ClipboardEntry[];
   timer: TimerSnapshot;
+  cacheCleaner: CacheCleanerState;
+}
+
+export interface CacheCleanerState {
+  isScanning: boolean;
+  isCleaning: boolean;
+  totalSafeBytes: number;
+  formattedSafeSize: string;
+  lastFreedBytes: number;
+  formattedFreedSize: string;
+  progressText: string;
+  hasCompletedInitialScan: boolean;
 }
 
 export const ISLAND_CANVAS_WIDTH = 720;
@@ -463,6 +475,7 @@ export function computeTargetIslandSize(state: SharedAppState): { width: number;
     case 'Clipboard':
       return { width: 640, height: 184 };
     case 'System':
+      return { width: 640, height: 198 };
     case 'Timer':
       return { width: 640, height: 158 };
   }
