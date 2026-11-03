@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 import {
   app,
   BrowserWindow,
@@ -447,6 +448,17 @@ class MakiMainController {
         (lMaj === cMaj && lMin > cMin) ||
         (lMaj === cMaj && lMin === cMin && lPat > cPat);
 
+      let installerDownloadUrl: string | null = null;
+      if (Array.isArray(data.assets)) {
+        for (const a of data.assets) {
+          const name = String(a.name || '').toLowerCase();
+          if (name.endsWith('.exe')) {
+            installerDownloadUrl = a.browser_download_url;
+            if (name.includes('setup')) break;
+          }
+        }
+      }
+
       if (isNewer) {
         const releaseUrl = data.html_url || 'https://github.com/maki-lab2410/maki-land/releases';
         this.updateAvailable = {
@@ -459,12 +471,14 @@ class MakiMainController {
         if (manual) {
           const choice = dialog.showMessageBoxSync({
             type: 'question',
-            buttons: ['Download Sekarang', 'Nanti Saja'],
+            buttons: ['✨ Perbarui Otomatis (1-Klik)', 'Buka di Browser', 'Nanti Saja'],
             defaultId: 0,
             title: 'Update Tersedia! 🎉',
-            message: `Versi baru maki-land (v${latestTag}) sudah tersedia!\n\nVersi kamu saat ini: v${currentVer}\n\nIngin membuka halaman download sekarang?`,
+            message: `Versi baru maki-land (v${latestTag}) sudah tersedia!\n\nVersi kamu saat ini: v${currentVer}\n\nIngin memperbarui secara otomatis sekarang?`,
           });
           if (choice === 0) {
+            void this.downloadAndApplyWindowsUpdate(installerDownloadUrl || releaseUrl);
+          } else if (choice === 1) {
             void shell.openExternal(releaseUrl);
           }
         } else {
@@ -488,6 +502,39 @@ class MakiMainController {
           message: 'Gagal mengecek pembaruan. Pastikan komputer terhubung ke internet.',
         });
       }
+    }
+  }
+
+  private async downloadAndApplyWindowsUpdate(url: string) {
+    if (!url.endsWith('.exe')) {
+      void shell.openExternal(url);
+      return;
+    }
+    this.showDesktopBubble('Maki sedang mengunduh pembaruan... ⏳', 10000);
+    this.studio.showBanner(`Mengunduh pembaruan v${this.updateAvailable?.version || ''}...`, true);
+
+    const tempInstaller = path.join(app.getPath('temp'), `makiland_setup_${Date.now()}.exe`);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(tempInstaller, buffer);
+
+      this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 4000);
+
+      // Execute installer with /S (silent update) or launch installer
+      const child = spawn(tempInstaller, ['/S'], { detached: true, stdio: 'ignore' });
+      child.unref();
+
+      setTimeout(() => {
+        app.quit();
+      }, 600);
+    } catch (e: any) {
+      dialog.showErrorBox(
+        'Gagal Memperbarui',
+        `Gagal mengunduh pembaruan otomatis: ${e?.message || e}\nSilakan unduh manual dari GitHub.`
+      );
+      void shell.openExternal(url);
     }
   }
 
