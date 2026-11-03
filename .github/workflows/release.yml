@@ -1,0 +1,121 @@
+name: Build and Release maki-land
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ==========================================
+  # 1. Build macOS Application
+  # ==========================================
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build macOS Release
+        run: |
+          xcrun swift build -c release --disable-sandbox
+          mkdir -p DynamicIsland.app/Contents/MacOS
+          mkdir -p DynamicIsland.app/Contents/Resources
+          cp .build/release/DynamicIsland DynamicIsland.app/Contents/MacOS/DynamicIsland
+          chmod +x DynamicIsland.app/Contents/MacOS/DynamicIsland
+          cp Resources/media-helper.swift DynamicIsland.app/Contents/Resources/media-helper.swift
+          if [ -f Resources/AppIcon.icns ]; then
+            cp Resources/AppIcon.icns DynamicIsland.app/Contents/Resources/AppIcon.icns
+          fi
+          # Create Info.plist
+          cat <<EOF > DynamicIsland.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>DynamicIsland</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.local.dynamicisland</string>
+              <key>CFBundleName</key>
+              <string>DynamicIsland</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.0</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>13.0</string>
+              <key>LSUIElement</key>
+              <true/>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+          </dict>
+          </plist>
+          EOF
+          codesign --force --deep -s - DynamicIsland.app
+          zip -qr DynamicIsland-macOS.zip DynamicIsland.app
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: DynamicIsland-macOS.zip
+
+  # ==========================================
+  # 2. Build Windows Installer & Portable
+  # ==========================================
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: maki-land-windows/package-lock.json
+
+      - name: Install dependencies
+        working-directory: maki-land-windows
+        run: npm ci
+
+      - name: Build and Package Windows
+        working-directory: maki-land-windows
+        run: npm run dist:win
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: maki-land-windows/release/*.exe
+
+  # ==========================================
+  # 3. Create GitHub Release with All Binaries
+  # ==========================================
+  release:
+    needs: [build-macos, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            DynamicIsland-macOS.zip
+            *.exe
+          generate_release_notes: true
