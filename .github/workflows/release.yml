@@ -22,30 +22,32 @@ jobs:
       - name: Build macOS Release
         run: |
           xcrun swift build -c release --disable-sandbox
-          mkdir -p DynamicIsland.app/Contents/MacOS
-          mkdir -p DynamicIsland.app/Contents/Resources
-          cp .build/release/DynamicIsland DynamicIsland.app/Contents/MacOS/DynamicIsland
-          chmod +x DynamicIsland.app/Contents/MacOS/DynamicIsland
-          cp Resources/media-helper.swift DynamicIsland.app/Contents/Resources/media-helper.swift
+          mkdir -p makiland.app/Contents/MacOS
+          mkdir -p makiland.app/Contents/Resources
+          cp .build/release/makiland makiland.app/Contents/MacOS/makiland
+          chmod +x makiland.app/Contents/MacOS/makiland
+          cp Resources/media-helper.swift makiland.app/Contents/Resources/media-helper.swift
           if [ -f Resources/AppIcon.icns ]; then
-            cp Resources/AppIcon.icns DynamicIsland.app/Contents/Resources/AppIcon.icns
+            cp Resources/AppIcon.icns makiland.app/Contents/Resources/AppIcon.icns
           fi
           # Create Info.plist
-          cat <<EOF > DynamicIsland.app/Contents/Info.plist
+          cat <<EOF > makiland.app/Contents/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>CFBundleExecutable</key>
-              <string>DynamicIsland</string>
+              <string>makiland</string>
               <key>CFBundleIdentifier</key>
-              <string>com.local.dynamicisland</string>
+              <string>com.local.makiland</string>
               <key>CFBundleName</key>
-              <string>DynamicIsland</string>
+              <string>makiland</string>
+              <key>CFBundleDisplayName</key>
+              <string>maki-land</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.0.0</string>
+              <string>1.0.1</string>
               <key>LSMinimumSystemVersion</key>
               <string>13.0</string>
               <key>LSUIElement</key>
@@ -55,17 +57,17 @@ jobs:
           </dict>
           </plist>
           EOF
-          codesign --force --deep -s - DynamicIsland.app
-          hdiutil create -volname "maki-land" -srcfolder DynamicIsland.app -ov -format UDZO DynamicIsland-macOS.dmg
-          zip -qr DynamicIsland-macOS.zip DynamicIsland.app
+          codesign --force --deep -s - makiland.app
+          hdiutil create -volname "makiland" -srcfolder makiland.app -ov -format UDZO makiland-macOS.dmg
+          zip -qr makiland-macOS.zip makiland.app
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
           path: |
-            DynamicIsland-macOS.dmg
-            DynamicIsland-macOS.zip
+            makiland-macOS.dmg
+            makiland-macOS.zip
 
   # ==========================================
   # 2. Build Windows Installer & Portable

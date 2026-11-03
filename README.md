@@ -22,18 +22,18 @@ Unduh versi rilis terbaru langsung dari halaman [**GitHub Releases**](https://gi
 Tersedia untuk semua Mac dengan arsitektur **Apple Silicon (M1/M2/M3/M4)** maupun **Intel** (macOS 13.0 Ventura ke atas).
 
 #### Cara Pasang via Disk Image (`.dmg`) — Sangat Direkomendasikan:
-1. Buka halaman [**GitHub Releases Terbaru**](https://github.com/maki-lab2410/maki-land/releases/latest) dan unduh file **`DynamicIsland-macOS.dmg`**.
+1. Buka halaman [**GitHub Releases Terbaru**](https://github.com/maki-lab2410/maki-land/releases/latest) dan unduh file **`makiland-macOS.dmg`**.
 2. Klik dua kali file `.dmg` yang telah diunduh untuk membukanya.
-3. Seret (drag & drop) ikon **DynamicIsland** ke folder **Applications**.
-4. Buka folder **Applications** di Mac Anda, lalu klik dua kali pada **DynamicIsland**.
+3. Seret (drag & drop) ikon **makiland** ke folder **Applications**.
+4. Buka folder **Applications** di Mac Anda, lalu klik dua kali pada **makiland**.
 
 #### Mengatasi Peringatan Keamanan Apple Gatekeeper (*Unidentified Developer*):
 Karena aplikasi ini dibuat secara independen dan menggunakan penandatanganan kode lokal (*ad-hoc code signing*), macOS mungkin menampilkan dialog:
-> *"DynamicIsland cannot be opened because it is from an unidentified developer"* atau *"macOS cannot verify that this app is free from malware"*.
+> *"makiland cannot be opened because it is from an unidentified developer"* atau *"macOS cannot verify that this app is free from malware"*.
 
 **Langkah mudah mengatasinya (cukup 1 kali saja di awal):**
 1. Buka folder **Applications** di Finder.
-2. **Klik kanan** (atau tahan tombol `Control` lalu klik) pada aplikasi **DynamicIsland**.
+2. **Klik kanan** (atau tahan tombol `Control` lalu klik) pada aplikasi **makiland**.
 3. Pilih **Open** dari menu klik kanan.
 4. Pada kotak dialog konfirmasi, klik tombol **Open** (atau **Open Anyway**).
 5. *Alternatif*: Buka **System Settings** > **Privacy & Security** > gulir ke bawah ke bagian *Security*, lalu klik tombol **Open Anyway**.
@@ -45,7 +45,7 @@ git clone https://github.com/maki-lab2410/maki-land.git
 cd maki-land
 chmod +x build_app.sh
 ./build_app.sh
-# Aplikasi hasil build siap dipakai di /Applications/DynamicIsland.app
+# Aplikasi hasil build siap dipakai di /Applications/makiland.app
 ```
 
 ---

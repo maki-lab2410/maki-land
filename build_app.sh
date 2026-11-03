@@ -12,7 +12,7 @@ mkdir -p /tmp/cache
 
 xcrun swift build -c release --disable-sandbox
 
-APP_NAME="DynamicIsland"
+APP_NAME="makiland"
 APP_BUNDLE="$DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -47,17 +47,19 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
-    <string>com.local.dynamicisland</string>
+    <string>com.local.makiland</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key>
+    <string>maki-land</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.0.1</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
@@ -67,7 +69,7 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Dynamic Island memerlukan akses untuk membaca informasi lagu dan mengontrol pemutaran musik.</string>
+    <string>maki-land memerlukan akses untuk membaca informasi lagu dan mengontrol pemutaran musik.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>maki-land memerlukan akses kalender untuk menampilkan jadwal harian dari akun iOS/iCloud dan Google Calendar Anda.</string>
     <key>NSCalendarsUsageDescription</key>
@@ -79,4 +81,10 @@ EOF
 echo "==> Performing Ad-Hoc code signing (Lifetime / No expiration)..."
 codesign --force --deep -s - "$APP_BUNDLE"
 
+echo "==> Generating disk image (DMG) & ZIP for easy distribution / Google Drive..."
+hdiutil create -volname "makiland" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DIR/makiland-macOS.dmg"
+zip -qr "$DIR/makiland-macOS.zip" "$APP_NAME.app"
+
 echo "==> Build successful! Application created at: $APP_BUNDLE"
+echo "==> Installer DMG created at: $DIR/makiland-macOS.dmg"
+echo "==> Archive ZIP created at: $DIR/makiland-macOS.zip"

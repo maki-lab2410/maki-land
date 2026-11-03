@@ -6,7 +6,7 @@ public class AutoLaunchService: ObservableObject {
     public static let shared = AutoLaunchService()
 
     private let storageKey = "maki_launch_at_login"
-    private let agentPlistName = "com.local.dynamicisland.plist"
+    private let agentPlistName = "com.local.makiland.plist"
 
     @Published public var isLaunchAtLoginEnabled: Bool = true
 
@@ -54,14 +54,14 @@ public class AutoLaunchService: ObservableObject {
         let folder = launchAgentURL.deletingLastPathComponent()
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
 
-        let appPath = "/Applications/DynamicIsland.app/Contents/MacOS/DynamicIsland"
+        let appPath = Bundle.main.executablePath ?? "/Applications/makiland.app/Contents/MacOS/makiland"
         let plistContent = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
         \t<key>Label</key>
-        \t<string>com.local.dynamicisland</string>
+        \t<string>com.local.makiland</string>
         \t<key>ProgramArguments</key>
         \t<array>
         \t\t<string>\(appPath)</string>

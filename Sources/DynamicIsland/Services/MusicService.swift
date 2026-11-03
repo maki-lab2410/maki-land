@@ -58,7 +58,7 @@ public class MusicService: ObservableObject {
 
     private func startHelperDaemon() {
         let script = Bundle.main.path(forResource: "media-helper", ofType: "swift")
-            ?? "/Applications/DynamicIsland.app/Contents/Resources/media-helper.swift"
+            ?? "/Applications/makiland.app/Contents/Resources/media-helper.swift"
 
         if FileManager.default.fileExists(atPath: script) {
             spawnProcess("/usr/bin/swift", [script])
