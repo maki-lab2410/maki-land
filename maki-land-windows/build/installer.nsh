@@ -3,11 +3,6 @@
   nsExec::Exec 'taskkill /F /IM "maki-land.exe" /T'
 !macroend
 
-!macro customInstall
-  # Auto-relaunch newly updated maki-land.exe so the user has seamless auto-update
-  Exec '"$INSTDIR\maki-land.exe"'
-!macroend
-
 !macro customUnInstall
   # 1. Forcefully kill running maki-land processes before deleting files
   nsExec::Exec 'taskkill /F /IM "maki-land.exe" /T'

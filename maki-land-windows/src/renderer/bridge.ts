@@ -13,6 +13,9 @@ export interface MakiWindowBridge {
     durationSec: number,
     mimeType?: string
   ) => Promise<{ success: boolean; filePath?: string; fileName?: string; error?: string }>;
+  saveCameraPhoto: (
+    base64Data: string
+  ) => Promise<{ success: boolean; filePath?: string; fileName?: string; error?: string }>;
   setCompactHover: (hovering: boolean) => void;
   setDropHold: (holding: boolean) => void;
   desktopDragStart: (screenX: number, screenY: number) => void;

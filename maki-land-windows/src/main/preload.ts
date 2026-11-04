@@ -13,6 +13,8 @@ export const makiBridge = {
   endNativeFileDrag: () => ipcRenderer.send('maki:end-drag'),
   saveVoiceRecording: (base64Data: string, durationSec: number, mimeType?: string) =>
     ipcRenderer.invoke('maki:save-voice-recording', { base64Data, durationSec, mimeType }),
+  saveCameraPhoto: (base64Data: string) =>
+    ipcRenderer.invoke('maki:save-camera-photo', { base64Data }),
   setCompactHover: (hovering: boolean) => ipcRenderer.send('maki:compact-hover', hovering),
   setDropHold: (holding: boolean) => ipcRenderer.send('maki:drop-hold', holding),
   desktopDragStart: (screenX: number, screenY: number) =>

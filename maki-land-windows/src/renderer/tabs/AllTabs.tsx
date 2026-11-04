@@ -352,6 +352,262 @@ export const VoiceRecorderPanel: React.FC<{
   );
 };
 
+export const CameraMirrorModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const [isFlipped, setIsFlipped] = useState(true);
+  const [ringLight, setRingLight] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const startWebcam = async () => {
+      try {
+        setErrorMsg(null);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            facingMode: 'user',
+          },
+          audio: false,
+        });
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err: unknown) {
+        console.error('[CameraMirror] Camera access error:', err);
+        setErrorMsg('Tidak dapat mengakses kamera. Pastikan webcam terpasang & izin kamera aktif.');
+      }
+    };
+
+    void startWebcam();
+
+    return () => {
+      active = false;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || isCapturing) return;
+    setIsCapturing(true);
+    setFlash(true);
+    setTimeout(() => setFlash(false), 200);
+
+    try {
+      const vid = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = vid.videoWidth || 1280;
+      canvas.height = vid.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        if (isFlipped) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        const res = await window.maki.saveCameraPhoto(base64);
+        if (res.success) {
+          setToastMsg('📸 Foto tersimpan di Tray & Clipboard (Ctrl+V)!');
+          setTimeout(() => setToastMsg(null), 3000);
+        }
+      }
+    } catch (err) {
+      console.error('[CameraMirror] Capture error:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 100,
+        background: 'rgba(0,0,0,0.92)',
+        backdropFilter: 'blur(16px)',
+        borderRadius: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 10,
+        boxSizing: 'border-box',
+        border: ringLight ? '2px solid rgba(255,255,255,0.7)' : '1px solid rgba(255,255,255,0.15)',
+        boxShadow: ringLight
+          ? '0 0 35px rgba(255,255,255,0.3) inset, 0 10px 40px rgba(0,0,0,0.8)'
+          : '0 10px 40px rgba(0,0,0,0.8)',
+      }}
+    >
+      {/* Mirror Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '0 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13 }}>🪞</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Cermin Kamera (Mirror)</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>Cek penampilan / selfie cepat</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button
+            className="pill-btn"
+            onClick={() => setRingLight(!ringLight)}
+            style={{
+              padding: '2.5px 7px',
+              fontSize: 9,
+              background: ringLight ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)',
+              color: ringLight ? '#fff' : 'rgba(255,255,255,0.6)',
+            }}
+            title="Nyalakan/matikan pencahayaan ring light cermin"
+          >
+            💡 {ringLight ? 'Lampu: ON' : 'Lampu: OFF'}
+          </button>
+          <button
+            className="pill-btn"
+            onClick={() => setIsFlipped(!isFlipped)}
+            style={{
+              padding: '2.5px 7px',
+              fontSize: 9,
+              background: 'rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.75)',
+            }}
+            title="Balik arah cermin (flip horizontal)"
+          >
+            🔄 {isFlipped ? 'Mirror' : 'Normal'}
+          </button>
+          <button
+            className="pill-btn"
+            onClick={onClose}
+            style={{
+              padding: '2.5px 8px',
+              fontSize: 10,
+              background: 'rgba(239,68,68,0.25)',
+              color: '#f87171',
+            }}
+            title="Tutup Cermin (Kamera mati)"
+          >
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      {/* Video Viewport */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          position: 'relative',
+          borderRadius: 14,
+          overflow: 'hidden',
+          background: '#050505',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {errorMsg ? (
+          <div style={{ padding: 20, textAlign: 'center', color: '#fca5a5', fontSize: 11 }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>📷⚠️</div>
+            <div>{errorMsg}</div>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: isFlipped ? 'scaleX(-1)' : 'none',
+              transition: 'transform 0.2s ease',
+            }}
+          />
+        )}
+
+        {/* Camera Flash effect on snapshot */}
+        {flash && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: '#fff',
+              opacity: 0.9,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {/* Toast confirmation */}
+        {toastMsg && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              background: 'rgba(0,0,0,0.85)',
+              border: '1px solid rgba(74,222,128,0.5)',
+              color: '#4ade80',
+              padding: '4px 12px',
+              borderRadius: 99,
+              fontSize: 10,
+              fontWeight: 600,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            }}
+          >
+            {toastMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Shutter Bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          marginTop: 8,
+          padding: '2px 0',
+        }}
+      >
+        <button
+          onClick={() => void capturePhoto()}
+          disabled={isCapturing || Boolean(errorMsg)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 16px',
+            borderRadius: 99,
+            background: 'linear-gradient(135deg, #fb923c, #ea580c)',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 10.5,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 2px 10px rgba(251,146,60,0.35)',
+          }}
+          title="Ambil foto selfie langsung masuk Tray & Clipboard Windows"
+        >
+          <span>📸</span>
+          <span>Ambil Foto (Selfie)</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export function formatLocalISO(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -1733,6 +1989,14 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
           </div>
           <button
             className="pill-btn"
+            onClick={() => void dispatchMaki('toggleMirror')}
+            style={{ background: 'rgba(168,85,247,0.22)', color: '#c084fc' }}
+            title="Buka cermin kamera (webcam mirror)"
+          >
+            🪞 Cermin / Mirror
+          </button>
+          <button
+            className="pill-btn"
             onClick={() => setIsRecordingVoice(true)}
             style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171' }}
             title="Rekam suara langsung ke Tray & Windows Documents"
@@ -1931,6 +2195,14 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
               </span>
             )}
             <div style={{ flex: 1 }} />
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('toggleMirror')}
+              style={{ background: 'rgba(168,85,247,0.22)', color: '#c084fc' }}
+              title="Buka cermin kamera (webcam mirror)"
+            >
+              🪞 Cermin
+            </button>
             <button
               className="pill-btn"
               onClick={() => setIsRecordingVoice(true)}

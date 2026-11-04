@@ -1,6 +1,6 @@
 # ✨ maki-land
 
-[![Release](https://img.shields.io/badge/release-v1.0.4-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.0.5-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
 [![Platform macOS](https://img.shields.io/badge/platform-macOS%2013%2B-black.svg?logo=apple)](https://github.com/maki-lab2410/maki-land/releases)
 [![Platform Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(64--bit)-blue.svg?logo=windows)](https://github.com/maki-lab2410/maki-land/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -54,16 +54,23 @@ chmod +x build_app.sh
 
 Tersedia dua pilihan paket aplikasi:
 
-#### Pilihan A: Installer Otomatis (`.exe`) — Direkomendasikan
-1. Unduh file **`maki-land.Setup.1.0.0.exe`** dari [**GitHub Releases**](https://github.com/maki-lab2410/maki-land/releases/latest).
+#### Pilihan A: Installer Otomatis (`.exe`) — Sangat Direkomendasikan
+1. Unduh file **`maki-land.Setup.1.0.5.exe`** dari [**GitHub Releases**](https://github.com/maki-lab2410/maki-land/releases/latest).
 2. Klik dua kali file installer tersebut.
-3. Ikuti langkah wizard instalasi (aplikasi akan otomatis membuat pintasan di Desktop dan Start Menu).
+3. Ikuti langkah wizard instalasi (installer akan otomatis memasang semua komponen, DLL sistem, serta membuat pintasan resmi di Desktop dan Start Menu).
 4. Aplikasi maki-land akan otomatis berjalan di layar atas Anda.
 
 #### Pilihan B: Versi Portable (Tanpa Perlu Install)
 1. Unduh file **`maki-land-Windows-Portable.exe`** dari [**GitHub Releases**](https://github.com/maki-lab2410/maki-land/releases/latest).
-2. Letakkan file di folder mana pun yang Anda inginkan (misal di folder *Documents*).
+2. Letakkan file di folder mana pun yang Anda inginkan (misal di folder *Documents* atau *Downloads*).
 3. Klik dua kali untuk langsung menjalankannya kapan saja tanpa instalasi sistem.
+
+#### Mengatasi Pesan Error *"The code execution cannot proceed because ffmpeg.dll was not found"*:
+Pesan ini muncul di Windows jika file `maki-land.exe` dipindahkan atau dijalankan terpisah dari file pendukungnya:
+1. **Penyebab 1: Meng-copy hanya file `maki-land.exe` sendirian ke Desktop**:
+   - *Solusi*: Jangan meng-copy filenya langsung. Buatlah **Shortcut**. Klik kanan pada file `maki-land.exe` > pilih **Send to** > **Desktop (create shortcut)**. Atau cukup gunakan installer resmi **`maki-land.Setup.1.0.5.exe`** yang otomatis membuat pintasan yang benar.
+2. **Penyebab 2: Membuka file dari dalam file `.zip` tanpa di-ekstrak**:
+   - *Solusi*: Klik kanan file `.zip` yang diunduh > pilih **Extract All...** (Ekstrak Semua) ke suatu folder terlebih dahulu sebelum menjalankan aplikasi.
 
 #### Mengatasi Peringatan Windows SmartScreen:
 Saat pertama kali membuka installer di Windows, mungkin muncul layar biru bertuliskan:
@@ -110,16 +117,20 @@ Aplikasi maki-land dilengkapi asisten cerdas **"Tanya Maki"** yang dapat diajak 
 
 ## 🌟 Fitur-Fitur Utama
 
-| Menu / Tab | Fitur & Kegunaan |
-|---|---|
-| **✨ maki-land** | Kalender harian (sinkronisasi iCloud/Google Calendar via URL ICS), ucapan selamat waktu (*greeting*), dan musik/media player aktif. |
-| **🐾 Capy Habitat** | Habitat tempat tinggal Maki. Rawat tingkat *Mood* & *Kenyang*, suapi buah (jeruk, semangka, apel), tumpuk jeruk di kepala, ajak atraksi, atau klik tombol **💬 Tanya AI** untuk ngobrol. |
-| **📝 Notes & To-Do** | Kolom ganda: **Scratchpad** kilat (tekan `⌘↩` / `Ctrl+Enter` untuk kirim baris ke To-Do) dan daftar **To‑Do** rapi dengan pintasan centang tugas cepat (`⌥1` s/d `⌥9`). Mode `⤢ Penuh` tersedia untuk melihat catatan panjang. |
-| **🪟 Launch** | Dermaga pintasan cepat (*Quick Launcher*) untuk meluncurkan aplikasi favorit, folder, maupun website kerja hanya dengan satu klik. |
-| **📥 Tray & Studio** | Drop zone cerdas & hub file: simpan sementara screenshot & file, rekam memo suara (**🎙️ Voice Recorder**), seret keluar (*drag-out*) ke Desktop/Explorer, atau salin file langsung (`Ctrl+V`). Dilengkapi **PDF Studio** (gabung, putar, pecah PDF), mini audio player, dan integrasi tanya AI. |
-| **📊 System & Clean** | Monitor penggunaan CPU, RAM, Baterai, dan pembersih sampah aman (**Maki Safe Cache Cleaner**) untuk membersihkan cache Xcode, Homebrew, Gradle, browser, dan temporary files. |
-| **📋 Clipboard** | Riwayat papan klip (*clipboard history*) otomatis yang mengingat teks dan gambar yang baru saja Anda salin. |
-| **⏱️ Timer** | Pengatur waktu fokus kerja/belajar (Pomodoro) dengan alarm visual saat waktu selesai. |
+Antarmuka maki-land dikelompokkan secara terstruktur ke dalam 4 kategori navigasi yang rapi dan mudah diakses:
+
+| Kategori | Tab & Fitur | Kegunaan |
+|---|---|---|
+| **🏠 Beranda & Maskot** | **✨ maki-land** | Kalender harian (sinkronisasi iCloud/Google Calendar via URL ICS), ucapan salam waktu, dan **sinkronisasi pemutar musik/media real-time** (Spotify, YouTube, Chrome, Edge, VLC, Apple Music di macOS & Windows). |
+| | **🐾 Capy Habitat** | Habitat tempat tinggal Maki. Rawat tingkat *Mood* & *Kenyang*, suapi buah (jeruk, semangka, apel), atraksi sirkus jeruk di kepala, kostum, atau klik **💬 Tanya AI** untuk berdiskusi langsung. |
+| **📁 Berkas & Media** | **📥 Tray & Studio** | Drop zone cerdas & hub file: simpan sementara screenshot & file, seret keluar (*drag-out*) ke folder/Desktop/aplikasi lain, atau salin file langsung (`Ctrl+V` / `⌘V`). Dilengkapi **PDF Studio** (gabung, putar, pecah PDF), mini audio player, dan tombol ringkas tanya AI. |
+| | **🪞 Cermin Kamera (Mirror)** | Fitur cermin webcam cepat langsung di layar: dilengkapi lampu penerang *ring light*, pembalik horizontal (*flip mirror*), dan pengambilan foto/selfie instan yang langsung otomatis tersimpan ke Tray & clipboard. |
+| | **🎙️ Rekam Suara (Voice)** | Memo suara cepat dengan waveform audio interaktif dan timer durasi. Rekaman langsung diekspor dan siap dipakai di Tray. |
+| **📝 Catatan & Fokus** | **📝 Notes & To-Do** | Kolom ganda: **Scratchpad** kilat (tekan `⌘↩` / `Ctrl+Enter` untuk kirim baris ke To-Do) dan daftar **To‑Do** interaktif dengan pintasan centang tugas cepat (`⌥1` s/d `⌥9`). Mode `⤢ Penuh` tersedia untuk melihat catatan panjang. |
+| | **⏱️ Timer Fokus** | Pengatur waktu fokus Pomodoro dengan preset waktu dan alarm visual saat sesi selesai. |
+| | **📋 Clipboard** | Riwayat papan klip (*clipboard history*) otomatis yang mengingat teks dan cuplikan gambar yang baru saja disalin. |
+| **⚙️ Alat & Sistem** | **📊 System & Clean** | Monitor metrik CPU, RAM, Baterai, dan pembersih sampah aman (**Maki Safe Cache Cleaner**) untuk membersihkan cache developer (Xcode, Homebrew, Gradle), browser, dan berkas sementara. |
+| | **🪟 Launch** | Dermaga pintasan cepat (*Quick Launcher*) untuk membuka aplikasi favorit, folder kerja, maupun website penting dengan satu klik. |
 
 ---
 

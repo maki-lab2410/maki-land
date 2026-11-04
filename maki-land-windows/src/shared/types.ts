@@ -19,6 +19,63 @@ export const ALL_ISLAND_TABS: { id: IslandTab; label: string; icon: string }[] =
   { id: 'Timer', label: 'Timer', icon: '⏳' },
 ];
 
+export type IslandCategory = 'home' | 'files' | 'notes' | 'system';
+
+export interface IslandCategoryGroup {
+  id: IslandCategory;
+  label: string;
+  icon: string;
+  tabs: { id: IslandTab; label: string; icon: string }[];
+}
+
+export const ISLAND_CATEGORY_GROUPS: IslandCategoryGroup[] = [
+  {
+    id: 'home',
+    label: 'Beranda',
+    icon: '🏠',
+    tabs: [
+      { id: 'maki-land', label: 'Musik & Jadwal', icon: '✨' },
+      { id: 'Capy', label: 'Capy & AI', icon: '🐾' },
+    ],
+  },
+  {
+    id: 'files',
+    label: 'Berkas',
+    icon: '📁',
+    tabs: [
+      { id: 'Tray', label: 'Tray & Studio', icon: '📥' },
+    ],
+  },
+  {
+    id: 'notes',
+    label: 'Catatan',
+    icon: '📝',
+    tabs: [
+      { id: 'Notes', label: 'Notes & To-Do', icon: '📝' },
+      { id: 'Timer', label: 'Timer Fokus', icon: '⏳' },
+      { id: 'Clipboard', label: 'Papan Klip', icon: '📋' },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'Sistem',
+    icon: '⚙️',
+    tabs: [
+      { id: 'System', label: 'Monitor Sistem', icon: '📊' },
+      { id: 'Launch', label: 'Peluncur Cepat', icon: '🚀' },
+    ],
+  },
+];
+
+export function getCategoryForTab(tab: IslandTab): IslandCategory {
+  for (const group of ISLAND_CATEGORY_GROUPS) {
+    if (group.tabs.some((t) => t.id === tab)) {
+      return group.id;
+    }
+  }
+  return 'home';
+}
+
 export type CapyMascotModel = 'classic' | 'plushie';
 
 export type CapyFood = 'Jeruk' | 'Semangka' | 'Sayur';
@@ -358,6 +415,7 @@ export interface SharedAppState {
   isPinned: boolean;
   isLaunchAtLogin: boolean;
   isMicMuted: boolean;
+  isMirrorOpen: boolean;
 
   // Capybara companion
   mood: number;

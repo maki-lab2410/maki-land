@@ -115,6 +115,7 @@ class MakiMainController {
   private selectedTab: IslandTab = 'maki-land';
   private isPinned = false;
   private isModalOpen = false;
+  private isMirrorOpen = false;
   private isLaunchAtLogin = true;
   private isMicMuted = false;
   private collapseCooldownUntil = 0;
@@ -625,8 +626,8 @@ class MakiMainController {
       this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 5000);
       this.studio.showBanner('Pembaruan selesai diunduh! Memasang & memulai ulang...', false, 5000);
 
-      // Execute installer with /S (silent update) and NSIS customInstall will relaunch maki-land.exe
-      const child = spawn(tempInstaller, ['/S'], { detached: true, stdio: 'ignore' });
+      // Execute installer with /S (silent) and --force-run so NSIS safely waits for file extraction and relaunches via user shell
+      const child = spawn(tempInstaller, ['/S', '--force-run'], { detached: true, stdio: 'ignore' });
       child.unref();
 
       setTimeout(() => {
@@ -2076,7 +2077,7 @@ class MakiMainController {
     if (!this.tray) return;
     const menu = Menu.buildFromTemplate([
       {
-        label: 'Tampilkan/Sembunyikan Island',
+        label: 'Tampilkan / Sembunyikan Island',
         click: () => {
           this.isIslandVisible = !this.isIslandVisible;
           if (this.isIslandVisible) this.islandWin?.show();
@@ -2085,11 +2086,11 @@ class MakiMainController {
         },
       },
       {
-        label: 'Buka/Tutup Mode Detail',
+        label: 'Buka / Tutup Mode Detail',
         click: () => this.setExpanded(!this.isExpanded),
       },
       {
-        label: '🐾 Lepas/Panggil Maki di Desktop',
+        label: '🐾 Lepas / Panggil Maki di Desktop',
         click: () => {
           if (this.isOnDesktop) this.returnToNotch();
           else this.releaseToDesktop();
@@ -2097,15 +2098,110 @@ class MakiMainController {
       },
       { type: 'separator' },
       {
-        label: 'Pilih Widget',
-        submenu: ALL_ISLAND_TABS.map((t) => ({
-          label: `${t.icon} ${t.label}`,
-          click: () => {
-            this.selectedTab = t.id;
-            this.setExpanded(true);
-            this.scheduleBroadcast();
+        label: '🪞 Buka Cermin (Mirror Kamera)',
+        click: () => {
+          this.isMirrorOpen = true;
+          this.setExpanded(true);
+          this.scheduleBroadcast();
+        },
+      },
+      {
+        label: '🎙️ Buka Perekam Suara',
+        click: () => {
+          this.selectedTab = 'Tray';
+          this.setExpanded(true);
+          this.scheduleBroadcast();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Pilih Widget Berdasarkan Kategori',
+        submenu: [
+          {
+            label: '🏠 Beranda & Maskot',
+            submenu: [
+              {
+                label: '✨ Musik & Jadwal',
+                click: () => {
+                  this.selectedTab = 'maki-land';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+              {
+                label: '🐾 Capy Habitat & AI',
+                click: () => {
+                  this.selectedTab = 'Capy';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+            ],
           },
-        })),
+          {
+            label: '📁 Berkas & Media',
+            submenu: [
+              {
+                label: '📥 Tray & Studio',
+                click: () => {
+                  this.selectedTab = 'Tray';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+            ],
+          },
+          {
+            label: '📝 Catatan & Fokus',
+            submenu: [
+              {
+                label: '📝 Catatan & To-Do',
+                click: () => {
+                  this.selectedTab = 'Notes';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+              {
+                label: '⏳ Timer Fokus',
+                click: () => {
+                  this.selectedTab = 'Timer';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+              {
+                label: '📋 Papan Klip',
+                click: () => {
+                  this.selectedTab = 'Clipboard';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+            ],
+          },
+          {
+            label: '⚙️ Alat & Sistem',
+            submenu: [
+              {
+                label: '📊 Monitor Sistem & Clean',
+                click: () => {
+                  this.selectedTab = 'System';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+              {
+                label: '🚀 Peluncur Cepat',
+                click: () => {
+                  this.selectedTab = 'Launch';
+                  this.setExpanded(true);
+                  this.scheduleBroadcast();
+                },
+              },
+            ],
+          },
+        ],
       },
       { type: 'separator' },
       {
@@ -2138,6 +2234,7 @@ class MakiMainController {
   private showDesktopRightClickMenu() {
     if (!this.desktopWin || this.desktopWin.isDestroyed()) return;
     const menu = Menu.buildFromTemplate([
+      // 1. 💬 Tanya Maki AI
       {
         label: this.gemini.isDesktopChatOpen ? '💬 Tutup Obrolan Maki AI' : '💬 Tanya Jawab dengan Maki (AI)',
         click: () => {
@@ -2155,8 +2252,27 @@ class MakiMainController {
           this.scheduleBroadcast();
         },
       },
+      { type: 'separator' },
+
+      // 2. 🪞 Alat Cepat (Quick Tools)
       {
-        label: '📥 Kasih Screenshot ke Tray',
+        label: '🪞 Buka Cermin (Mirror Kamera)',
+        click: () => {
+          this.isMirrorOpen = true;
+          this.setExpanded(true);
+          this.scheduleBroadcast();
+        },
+      },
+      {
+        label: '🎙️ Buka Perekam Suara',
+        click: () => {
+          this.selectedTab = 'Tray';
+          this.setExpanded(true);
+          this.scheduleBroadcast();
+        },
+      },
+      {
+        label: '📥 Masukkan Screenshot ke Tray',
         click: async () => {
           const item = await this.studio.grabClipboardOrRecentScreenshot();
           if (item) {
@@ -2168,14 +2284,33 @@ class MakiMainController {
           }
         },
       },
+      {
+        label: '🧹 Bersihkan Cache Aman (Maki Clean)',
+        click: () => void this.cleanCacheInteractive(),
+      },
       { type: 'separator' },
+
+      // 3. 🎪 Interaksi & Atraksi Maskot
+      {
+        label: '🍉 Kasih Makan',
+        submenu: CAPY_FOODS.map((f) => ({
+          label: `${f.emoji} Kasih ${f.id}`,
+          click: () => this.feed(f.id),
+        })),
+      },
+      {
+        label: `🍊 Tumpuk Jeruk di Kepala (${this.orangesOnHead}/3)`,
+        click: () => this.cycleOranges(),
+      },
+      {
+        label: '♨️ Berendam Air Panas Onsen',
+        type: 'checkbox' as const,
+        checked: this.isOnsenMode,
+        click: () => this.toggleOnsen(),
+      },
       {
         label: '🎪 Atraksi Acak',
         click: () => this.performRandomIdleActivity(false),
-      },
-      {
-        label: '🍊 Atraksi Sirkus 3 Jeruk',
-        click: () => this.triggerSpecificActivity('jugglingOranges', 'satu.. dua.. tiga..', 8000),
       },
       {
         label: '🎭 Pilih Atraksi Spesifik',
@@ -2201,24 +2336,8 @@ class MakiMainController {
         click: () => this.interactInTab('Capy', true),
       },
       { type: 'separator' },
-      ...CAPY_FOODS.map((f) => ({
-        label: `${f.emoji} Kasih ${f.id}`,
-        click: () => this.feed(f.id),
-      })),
-      {
-        label: '♨️ Berendam Onsen',
-        type: 'checkbox' as const,
-        checked: this.isOnsenMode,
-        click: () => this.toggleOnsen(),
-      },
-      {
-        label: `🍊 Tumpuk Jeruk (${this.orangesOnHead}/3)`,
-        click: () => this.cycleOranges(),
-      },
-      {
-        label: '🧹 Bersihkan Cache Aman (Maki Clean)',
-        click: () => void this.cleanCacheInteractive(),
-      },
+
+      // 4. 🎨 Tampilan & Model
       {
         label: `🎨 Model Tampilan: ${this.mascotModel === 'plushie' ? '🧸 Boneka' : '🐾 Klasik'}`,
         submenu: [
@@ -2247,6 +2366,8 @@ class MakiMainController {
         ],
       },
       { type: 'separator' },
+
+      // 5. 🚶 Navigasi Desktop
       {
         label: '🚶 Bebas Jalan-Jalan di Desktop',
         type: 'checkbox',
@@ -2269,6 +2390,8 @@ class MakiMainController {
         click: () => this.returnToNotch(),
       },
       { type: 'separator' },
+
+      // 6. ⚙️ Pengaturan & Bantuan
       {
         label: '⚡ Buka Otomatis saat Booting / Nyala',
         type: 'checkbox',
@@ -2603,6 +2726,45 @@ class MakiMainController {
       }
     );
 
+    ipcMain.handle(
+      'maki:save-camera-photo',
+      async (_ev, payload: { base64Data: string }) => {
+        try {
+          if (!payload?.base64Data) {
+            return { success: false, error: 'Data foto kosong' };
+          }
+          const docs = app.getPath('documents') || os.homedir();
+          const photoDir = path.join(docs, 'maki-land Photos');
+          fs.mkdirSync(photoDir, { recursive: true });
+
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+          const fileName = `Foto_${timestamp}.png`;
+          const targetPath = path.join(photoDir, fileName);
+
+          const buf = Buffer.from(payload.base64Data, 'base64');
+          fs.writeFileSync(targetPath, buf);
+
+          await this.studio.addFilePaths([targetPath], false);
+          if (process.platform === 'win32') {
+            await copyFileToWindowsClipboard(targetPath);
+          }
+
+          this.studio.showBanner(`📸 Foto "${fileName}" tersimpan di Tray & Clipboard! 📋`);
+          if (this.isOnDesktop) {
+            this.showDesktopBubble(`📸 Fotonya cakep! Sudah masuk Tray ya~ 🐾`, 5000);
+          }
+          this.scheduleBroadcast();
+
+          return { success: true, filePath: targetPath, fileName };
+        } catch (err: any) {
+          console.error('[maki:save-camera-photo] Error saving photo:', err);
+          return { success: false, error: err?.message || String(err) };
+        }
+      }
+    );
+
     ipcMain.on('maki:desktop-context-menu', () => {
       this.showDesktopRightClickMenu();
     });
@@ -2785,6 +2947,15 @@ class MakiMainController {
         break;
       case 'toggleMicMute':
         this.isMicMuted = await toggleWindowsMicMute(!this.isMicMuted);
+        break;
+      case 'toggleMirror':
+        this.isMirrorOpen = !this.isMirrorOpen;
+        if (this.isMirrorOpen && !this.isExpanded) {
+          this.setExpanded(true);
+        }
+        break;
+      case 'closeMirror':
+        this.isMirrorOpen = false;
         break;
       case 'toggleAutoLaunch':
         this.applyAutoLaunchSetting(!this.isLaunchAtLogin);
@@ -3336,6 +3507,7 @@ class MakiMainController {
       isPinned: this.isPinned,
       isLaunchAtLogin: this.isLaunchAtLogin,
       isMicMuted: this.isMicMuted,
+      isMirrorOpen: this.isMirrorOpen,
 
       mood: this.mood,
       fullness: this.fullness,

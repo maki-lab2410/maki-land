@@ -55,6 +55,8 @@ function runPowerShell(script: string, timeoutMs = 3500): Promise<string> {
 const WINDOWS_STATUS_PS = `
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue
+
 $ps = [System.Windows.Forms.SystemInformation]::PowerStatus
 $batPct = [int][Math]::Round($ps.BatteryLifePercent * 100)
 if ($batPct -lt 0 -or $batPct -gt 100) { $batPct = 100 }
@@ -66,38 +68,94 @@ $artist = ''
 $app = ''
 $playing = $false
 
+# 1. Primary: Windows 10/11 System Media Transport Controls (WinRT SMTC)
 try {
   [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime] | Out-Null
-  $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
-  function Await($WinRtTask, $ResultType) {
-    $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
-    $netTask = $asTask.Invoke($null, @($WinRtTask))
-    $netTask.Wait(1200) | Out-Null
-    return $netTask.Result
-  }
-  $mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-  if ($mgr -ne $null) {
+  $mgr = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync().GetAwaiter().GetResult()
+  if ($mgr) {
     $session = $mgr.GetCurrentSession()
-    if ($session -ne $null) {
-      $pb = $session.GetPlaybackInfo()
-      if ($pb -ne $null) {
-        $playing = ($pb.PlaybackStatus -eq [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing)
+    if (-not $session) {
+      $all = $mgr.GetSessions()
+      if ($all) {
+        foreach ($s in $all) {
+          $pb = $s.GetPlaybackInfo()
+          if ($pb -and $pb.PlaybackStatus -eq 4) {
+            $session = $s
+            break
+          }
+        }
+        if (-not $session -and $all.Count -gt 0) {
+          $session = $all[0]
+        }
       }
-      $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
-      if ($props -ne $null) {
-        $title = [string]$props.Title
-        $artist = [string]$props.Artist
+    }
+
+    if ($session) {
+      $pb = $session.GetPlaybackInfo()
+      if ($pb) {
+        # 4 = Playing, 5 = Paused
+        $playing = ($pb.PlaybackStatus -eq 4)
+      }
+      $props = $session.TryGetMediaPropertiesAsync().GetAwaiter().GetResult()
+      if ($props) {
+        if ($props.Title) { $title = [string]$props.Title }
+        if ($props.Artist) { $artist = [string]$props.Artist }
       }
       $rawApp = [string]$session.SourceAppUserModelId
       if ($rawApp -match 'Spotify') { $app = 'Spotify' }
       elseif ($rawApp -match 'chrome') { $app = 'Chrome' }
       elseif ($rawApp -match 'msedge') { $app = 'Edge' }
+      elseif ($rawApp -match 'firefox') { $app = 'Firefox' }
       elseif ($rawApp -match 'AppleMusic|iTunes') { $app = 'Apple Music' }
       elseif ($rawApp -match 'vlc') { $app = 'VLC' }
-      else { $app = ($rawApp -replace '\\.exe$','') }
+      elseif ($rawApp) { $app = ($rawApp -replace '\\.exe$','') }
     }
   }
 } catch {}
+
+# 2. Resilient Fallback: Inspect Process Window Titles (for Spotify Desktop & Web YouTube/Media)
+if (-not $title) {
+  try {
+    # Check Spotify Desktop Window Title ("Artist - Song Title")
+    $spot = Get-Process -Name Spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | Select-Object -First 1
+    if ($spot -and $spot.MainWindowTitle -and $spot.MainWindowTitle -ne 'Spotify' -and $spot.MainWindowTitle -ne 'Spotify Free' -and $spot.MainWindowTitle -ne 'Spotify Premium') {
+      $spotTitle = $spot.MainWindowTitle
+      $dashIdx = $spotTitle.IndexOf(' - ')
+      if ($dashIdx -gt 0) {
+        $artist = $spotTitle.Substring(0, $dashIdx).Trim()
+        $title = $spotTitle.Substring($dashIdx + 3).Trim()
+      } else {
+        $title = $spotTitle
+      }
+      $app = 'Spotify'
+      $playing = $true
+    }
+
+    # Check Chrome, Edge, Firefox, Brave, Opera for YouTube / Media playback
+    if (-not $title) {
+      $browsers = Get-Process -Name chrome, msedge, firefox, brave, opera -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match ' - YouTube' } | Select-Object -First 1
+      if ($browsers) {
+        $bTitle = $browsers.MainWindowTitle
+        $bTitle = $bTitle -replace ' - YouTube Music.*$', ''
+        $bTitle = $bTitle -replace ' - YouTube.*$', ''
+        $bTitle = $bTitle -replace ' - Google Chrome.*$', ''
+        $bTitle = $bTitle -replace ' - Microsoft Edge.*$', ''
+        $bTitle = $bTitle -replace ' - Mozilla Firefox.*$', ''
+        $bTitle = $bTitle -replace ' - Brave.*$', ''
+        $bTitle = $bTitle -replace ' - Opera.*$', ''
+        $dashIdx = $bTitle.IndexOf(' - ')
+        if ($dashIdx -gt 0) {
+          $artist = $bTitle.Substring(0, $dashIdx).Trim()
+          $title = $bTitle.Substring($dashIdx + 3).Trim()
+        } else {
+          $title = $bTitle.Trim()
+        }
+        $app = 'YouTube'
+        $playing = $true
+      }
+    }
+  } catch {}
+}
 
 $fgName = ''
 try {
@@ -207,6 +265,10 @@ export async function sendWindowsMediaControl(cmd: 'playPause' | 'next' | 'prev'
     return;
   }
 
+  if (cmd === 'playPause') {
+    cachedTrack.isPlaying = !cachedTrack.isPlaying;
+  }
+
   // Virtual-Key codes: 0xB3 = VK_MEDIA_PLAY_PAUSE, 0xB0 = VK_MEDIA_NEXT_TRACK, 0xB1 = VK_MEDIA_PREV_TRACK
   const vk = cmd === 'playPause' ? 0xb3 : cmd === 'next' ? 0xb0 : 0xb1;
   const ps = `
@@ -222,12 +284,13 @@ public class MediaKeySender {
 [MediaKeySender]::keybd_event(${vk}, 0, 2, [UIntPtr]::Zero)
 `;
   await runPowerShell(ps, 2000);
-  if (cmd === 'playPause') {
-    cachedTrack.isPlaying = !cachedTrack.isPlaying;
-  }
+
   setTimeout(() => {
     void pollWindowsStatusOnce();
-  }, 450);
+  }, 250);
+  setTimeout(() => {
+    void pollWindowsStatusOnce();
+  }, 750);
 }
 
 export async function toggleWindowsMicMute(nextMuted: boolean): Promise<boolean> {
