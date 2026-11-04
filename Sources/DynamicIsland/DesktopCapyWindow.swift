@@ -873,6 +873,10 @@ public class DesktopCapyController: NSObject {
         mirrorItem.target = self
         menu.addItem(mirrorItem)
 
+        let recordItem = NSMenuItem(title: "🎙️ Rekam Memo Suara (Voice)", action: #selector(ctxOpenVoiceRecorder), keyEquivalent: "")
+        recordItem.target = self
+        menu.addItem(recordItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let trickItem = NSMenuItem(title: "🎪 Atraksi Acak", action: #selector(ctxTrick), keyEquivalent: "")
@@ -1004,6 +1008,11 @@ public class DesktopCapyController: NSObject {
     @objc private func ctxOpenMirror() {
         IslandState.shared.isExpanded = true
         IslandState.shared.isShowingCameraMirror = true
+        IslandController.shared.panel?.makeKeyAndOrderFront(nil)
+    }
+    @objc private func ctxOpenVoiceRecorder() {
+        IslandState.shared.isExpanded = true
+        IslandState.shared.isShowingVoiceRecorder = true
         IslandController.shared.panel?.makeKeyAndOrderFront(nil)
     }
     @objc private func ctxTrick() { CapybaraService.shared.triggerRandomFunActivity() }

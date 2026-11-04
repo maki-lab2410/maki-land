@@ -75,6 +75,26 @@ public struct DropZoneView: View {
                         .help("Buka cermin kamera / webcam langsung di layar")
 
                         Button {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                IslandState.shared.isShowingVoiceRecorder = true
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("🎙️")
+                                    .font(.system(size: 10))
+                                Text("Rekam Suara")
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
+                            .background(Color.red.opacity(0.28))
+                            .foregroundColor(Color.red.opacity(0.95))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Rekam memo suara langsung ke Tray")
+
+                        Button {
                             CapybaraService.shared.catchClipboardOrRecentScreenshot()
                         } label: {
                             HStack(spacing: 4) {
@@ -159,6 +179,26 @@ public struct DropZoneView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Buka cermin kamera / webcam langsung di layar")
+
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            IslandState.shared.isShowingVoiceRecorder = true
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("🎙️")
+                                .font(.system(size: 9))
+                            Text("Rekam")
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.red.opacity(0.24))
+                        .foregroundColor(Color.red.opacity(0.95))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Rekam memo suara langsung ke Tray")
 
                     Button {
                         CapybaraService.shared.catchClipboardOrRecentScreenshot()

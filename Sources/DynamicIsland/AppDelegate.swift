@@ -108,6 +108,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         mirrorItem.target = self
         menu.addItem(mirrorItem)
 
+        let recordItem = NSMenuItem(
+            title: "🎙️ Rekam Suara (Voice Memo)",
+            action: #selector(openVoiceRecorder),
+            keyEquivalent: "r"
+        )
+        recordItem.target = self
+        menu.addItem(recordItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // Quick Tab Switcher Submenu
@@ -172,6 +180,12 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openCameraMirror() {
         IslandState.shared.isExpanded = true
         IslandState.shared.isShowingCameraMirror = true
+        IslandController.shared.panel?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func openVoiceRecorder() {
+        IslandState.shared.isExpanded = true
+        IslandState.shared.isShowingVoiceRecorder = true
         IslandController.shared.panel?.makeKeyAndOrderFront(nil)
     }
 

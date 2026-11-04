@@ -50,6 +50,9 @@ public class IslandState: ObservableObject {
     @Published public var isShowingCameraMirror: Bool = false {
         didSet { notifySize() }
     }
+    @Published public var isShowingVoiceRecorder: Bool = false {
+        didSet { notifySize() }
+    }
 
     public var onSizeChange: ((CGSize) -> Void)?
     public private(set) var collapseCooldownUntil: Date = .distantPast
@@ -73,6 +76,9 @@ public class IslandState: ObservableObject {
         }
         if isShowingCameraMirror {
             return CGSize(width: 660, height: 265)
+        }
+        if isShowingVoiceRecorder {
+            return CGSize(width: 660, height: 210)
         }
         switch selectedTab {
         case .tray:
@@ -303,6 +309,8 @@ public struct IslandRootView: View {
                 UpdateDialogView()
             } else if state.isShowingCameraMirror {
                 CameraMirrorView()
+            } else if state.isShowingVoiceRecorder {
+                VoiceRecorderView()
             } else {
                 // Scrollable Tab Bar
                 HStack(spacing: 6) {
@@ -376,6 +384,27 @@ public struct IslandRootView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Buka Cermin Kamera (Mirror Webcam)")
+
+                    // Quick Voice Recorder Button
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            state.isShowingVoiceRecorder.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("🎙️")
+                                .font(.system(size: 10))
+                            Text("Rekam")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(state.isShowingVoiceRecorder ? Color.red.opacity(0.38) : Color.red.opacity(0.18))
+                        .foregroundColor(state.isShowingVoiceRecorder ? .white : Color.red.opacity(0.9))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Rekam Memo Suara (Voice Recorder)")
 
                     // Help / Onboarding Guide Button
                     Button {
