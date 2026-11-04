@@ -6,6 +6,7 @@ export interface MakiWindowBridge {
   onStateChange: (cb: (state: SharedAppState) => void) => () => void;
   dispatch: (action: string, payload?: Record<string, unknown>) => Promise<SharedAppState>;
   startNativeFileDrag: (filePath: string) => void;
+  endNativeFileDrag: () => void;
   setCompactHover: (hovering: boolean) => void;
   setDropHold: (holding: boolean) => void;
   desktopDragStart: (screenX: number, screenY: number) => void;

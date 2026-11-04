@@ -204,6 +204,7 @@ class MakiMainController {
   private lastDragTime = 0;
   private dragVelocity = { x: 0, y: 0 };
   private isWindowDragActive = false;
+  private isNativeFileDragging = false;
 
   private islandIgnoreMouse: boolean | null = null;
   private desktopIgnoreMouse: boolean | null = null;
@@ -244,8 +245,19 @@ class MakiMainController {
 
   private getAssetPath(name: string): string {
     const devPath = path.resolve(__dirname, '../../assets', name);
-    if (fs.existsSync(devPath)) return devPath;
-    return path.join(process.resourcesPath, 'assets', name);
+    if (fs.existsSync(devPath) && !devPath.includes('.asar')) return devPath;
+    const resPath = path.join(process.resourcesPath, 'assets', name);
+    if (fs.existsSync(resPath) && !resPath.includes('.asar')) return resPath;
+    const cachedPath = path.join(app.getPath('userData'), 'assets', name);
+    if (fs.existsSync(cachedPath)) return cachedPath;
+    try {
+      if (fs.existsSync(devPath)) {
+        fs.mkdirSync(path.dirname(cachedPath), { recursive: true });
+        fs.writeFileSync(cachedPath, fs.readFileSync(devPath));
+        return cachedPath;
+      }
+    } catch {}
+    return devPath;
   }
 
   private defaultLauncherItems(): LauncherItem[] {
@@ -632,6 +644,7 @@ class MakiMainController {
 
     // Auto-minimize immediately when user clicks outside expanded Island on Windows 10/11
     win.on('blur', () => {
+      if (this.isNativeFileDragging) return;
       if (this.isExpanded && !this.isPinned && !this.isModalOpen) {
         const cursor = screen.getCursorScreenPoint();
         if (!this.isPointInsideActiveNotch(cursor)) {
@@ -999,11 +1012,18 @@ class MakiMainController {
 
     // 1. Dynamic Island window click-through
     if (this.islandWin && !this.islandWin.isDestroyed() && this.isIslandVisible) {
-      const hitNotch = this.isPointInsideActiveNotch(cursor) || this.isHeldForDrop;
-      const shouldIgnore = !hitNotch;
-      if (this.islandIgnoreMouse !== shouldIgnore) {
-        this.islandIgnoreMouse = shouldIgnore;
-        this.islandWin.setIgnoreMouseEvents(shouldIgnore, { forward: true });
+      if (this.isNativeFileDragging) {
+        if (this.islandIgnoreMouse !== false) {
+          this.islandIgnoreMouse = false;
+          this.islandWin.setIgnoreMouseEvents(false);
+        }
+      } else {
+        const hitNotch = this.isPointInsideActiveNotch(cursor) || this.isHeldForDrop;
+        const shouldIgnore = !hitNotch;
+        if (this.islandIgnoreMouse !== shouldIgnore) {
+          this.islandIgnoreMouse = shouldIgnore;
+          this.islandWin.setIgnoreMouseEvents(shouldIgnore, { forward: true });
+        }
       }
     }
 
@@ -1636,7 +1656,7 @@ class MakiMainController {
 
   // --- Calendar (.ics + Local) ---
   public async syncGoogleICS(url: string) {
-    this.googleICSUrl = url.trim();
+    this.googleICSUrl = (url || '').trim().replace(/^["']|["']$/g, '');
     this.savePersisted();
     if (!this.googleICSUrl) {
       this.icsCalendarEvents = [];
@@ -1649,13 +1669,49 @@ class MakiMainController {
     this.calendarError = null;
     this.scheduleBroadcast();
     try {
-      const normalized = this.googleICSUrl.replace(/^webcal:\/\//i, 'https://');
-      const res = await fetch(normalized);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let normalized = this.googleICSUrl.replace(/^webcal:\/\//i, 'https://');
+      if (!/^https?:\/\//i.test(normalized)) {
+        normalized = `https://${normalized}`;
+      }
+
+      const res = await fetch(normalized, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 maki-land/1.0.0',
+          Accept: 'text/calendar, text/plain, */*',
+          'Cache-Control': 'no-cache',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(
+          'Akses ditolak (403/401). Di Google Calendar, gunakan "Alamat rahasia dalam format iCal", bukan URL publik yang dikunci.'
+        );
+      }
+      if (res.status === 404) {
+        throw new Error('Kalender tidak ditemukan (404). Periksa kembali tautan .ics Anda.');
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
       const raw = await res.text();
+      if (!raw.includes('BEGIN:VCALENDAR')) {
+        if (raw.includes('<!DOCTYPE html>') || raw.includes('<html') || raw.includes('<head>')) {
+          throw new Error(
+            'Tautan ini membuka halaman web, bukan file kalender .ics. Buka Google Calendar di browser > Settings > Integrasikan Kalender > salin "Alamat rahasia dalam format iCal".'
+          );
+        }
+        throw new Error('Format kalender tidak dikenali (bukan iCalendar .ics)');
+      }
+
       this.icsCalendarEvents = MakiMainController.parseICS(raw);
       if (this.icsCalendarEvents.length === 0) {
-        this.calendarError = 'URL .ics terbaca, belum ada jadwal terdekat';
+        this.calendarError = 'Kalender terhubung! Tidak ada agenda dalam 30 hari terakhir hingga 90 hari ke depan.';
+      } else {
+        this.calendarError = null;
       }
     } catch (e) {
       this.calendarError = `Gagal sinkron .ics: ${(e as Error).message}`;
@@ -1665,56 +1721,237 @@ class MakiMainController {
     }
   }
 
+  private static formatLocalISO(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private static parseICSDate(rawVal: string): {
+    dateISO: string;
+    timeLabel: string;
+    isAllDay: boolean;
+    dateObj: Date;
+  } | null {
+    const v = rawVal.trim();
+    if (v.length < 8) return null;
+    const y = parseInt(v.slice(0, 4), 10);
+    const m = parseInt(v.slice(4, 6), 10);
+    const d = parseInt(v.slice(6, 8), 10);
+
+    if (!v.includes('T')) {
+      const dateISO = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      return { dateISO, timeLabel: 'Seharian', isAllDay: true, dateObj: new Date(y, m - 1, d) };
+    }
+
+    const tPart = v.slice(v.indexOf('T') + 1);
+    const hh = parseInt(tPart.slice(0, 2), 10);
+    const mm = parseInt(tPart.slice(2, 4), 10);
+    const ss = tPart.length >= 6 ? parseInt(tPart.slice(4, 6), 10) : 0;
+
+    if (v.endsWith('Z')) {
+      const utcDate = new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
+      const dateISO = MakiMainController.formatLocalISO(utcDate);
+      const timeLabel = `${String(utcDate.getHours()).padStart(2, '0')}:${String(utcDate.getMinutes()).padStart(2, '0')}`;
+      return { dateISO, timeLabel, isAllDay: false, dateObj: utcDate };
+    }
+
+    const localDate = new Date(y, m - 1, d, hh, mm, ss);
+    const dateISO = MakiMainController.formatLocalISO(localDate);
+    const timeLabel = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    return { dateISO, timeLabel, isAllDay: false, dateObj: localDate };
+  }
+
+  private static expandRecurrence(
+    startParsed: { dateISO: string; timeLabel: string; isAllDay: boolean; dateObj: Date },
+    rruleStr: string,
+    now: Date,
+    daysBack = 30,
+    daysForward = 90
+  ): { dateISO: string; timeLabel: string; isAllDay: boolean }[] {
+    const results: { dateISO: string; timeLabel: string; isAllDay: boolean }[] = [];
+    const windowStart = new Date(now.getTime() - daysBack * 86400000);
+    const windowEnd = new Date(now.getTime() + daysForward * 86400000);
+
+    const rules: Record<string, string> = {};
+    rruleStr.split(';').forEach((p) => {
+      const [k, v] = p.split('=');
+      if (k && v) rules[k.toUpperCase()] = v.toUpperCase();
+    });
+
+    const freq = rules['FREQ'];
+    if (!freq) return results;
+
+    const interval = Math.max(1, parseInt(rules['INTERVAL'] || '1', 10));
+    let untilDate: Date | null = null;
+    if (rules['UNTIL']) {
+      const u = rules['UNTIL'];
+      if (u.length >= 8) {
+        const uy = parseInt(u.slice(0, 4), 10);
+        const um = parseInt(u.slice(4, 6), 10);
+        const ud = parseInt(u.slice(6, 8), 10);
+        untilDate = new Date(uy, um - 1, ud, 23, 59, 59);
+      }
+    }
+    const maxCount = rules['COUNT'] ? parseInt(rules['COUNT'], 10) : 365;
+
+    const dayMap: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+    const byDays = rules['BYDAY']
+      ? rules['BYDAY']
+          .split(',')
+          .map((d) => dayMap[d.trim()])
+          .filter((x): x is number => x !== undefined)
+      : null;
+
+    const cur = new Date(startParsed.dateObj.getTime());
+    let emitted = 0;
+
+    // Fast-forward cur if start date is far in the past
+    if (freq === 'WEEKLY' && cur < windowStart) {
+      const diffWeeks = Math.floor((windowStart.getTime() - cur.getTime()) / (7 * 86400000 * interval));
+      if (diffWeeks > 1) {
+        cur.setDate(cur.getDate() + diffWeeks * 7 * interval);
+      }
+    } else if (freq === 'DAILY' && cur < windowStart) {
+      const diffDays = Math.floor((windowStart.getTime() - cur.getTime()) / (86400000 * interval));
+      if (diffDays > 1) {
+        cur.setDate(cur.getDate() + diffDays * interval);
+      }
+    } else if (freq === 'YEARLY' && cur < windowStart) {
+      const diffYears = windowStart.getFullYear() - cur.getFullYear() - 1;
+      if (diffYears > 0) {
+        cur.setFullYear(cur.getFullYear() + diffYears * interval);
+      }
+    }
+
+    let iterations = 0;
+    while (cur <= windowEnd && emitted < maxCount && iterations < 1200) {
+      iterations++;
+      if (untilDate && cur > untilDate) break;
+
+      if (freq === 'WEEKLY' && byDays && byDays.length > 0) {
+        if (byDays.includes(cur.getDay()) && cur >= windowStart) {
+          results.push({
+            dateISO: MakiMainController.formatLocalISO(cur),
+            timeLabel: startParsed.timeLabel,
+            isAllDay: startParsed.isAllDay,
+          });
+          emitted++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      } else {
+        if (cur >= windowStart) {
+          results.push({
+            dateISO: MakiMainController.formatLocalISO(cur),
+            timeLabel: startParsed.timeLabel,
+            isAllDay: startParsed.isAllDay,
+          });
+          emitted++;
+        }
+        if (freq === 'DAILY') {
+          cur.setDate(cur.getDate() + interval);
+        } else if (freq === 'WEEKLY') {
+          cur.setDate(cur.getDate() + 7 * interval);
+        } else if (freq === 'MONTHLY') {
+          cur.setMonth(cur.getMonth() + interval);
+        } else if (freq === 'YEARLY') {
+          cur.setFullYear(cur.getFullYear() + interval);
+        } else {
+          break;
+        }
+      }
+    }
+
+    return results;
+  }
+
   private static parseICS(icsText: string): CalendarEventItem[] {
     const unfolded = icsText.replace(/\r?\n[ \t]/g, '');
     const blocks = unfolded.split('BEGIN:VEVENT').slice(1);
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 30 * 86400000);
+    const windowEnd = new Date(now.getTime() + 90 * 86400000);
+    const windowStartISO = MakiMainController.formatLocalISO(windowStart);
+    const windowEndISO = MakiMainController.formatLocalISO(windowEnd);
+
     const results: CalendarEventItem[] = [];
+    const seenKeys = new Set<string>();
+
     for (const block of blocks) {
       const body = block.split('END:VEVENT')[0] || '';
       const lines = body.split(/\r?\n/);
       let summary = '';
-      let dtStart = '';
+      let dtStartRaw = '';
       let uid = '';
+      let rrule = '';
+
       for (const line of lines) {
         if (line.startsWith('SUMMARY')) {
           summary = line.slice(line.indexOf(':') + 1).trim();
         } else if (line.startsWith('DTSTART')) {
-          dtStart = line.slice(line.indexOf(':') + 1).trim();
+          dtStartRaw = line.slice(line.indexOf(':') + 1).trim();
         } else if (line.startsWith('UID:')) {
           uid = line.slice(4).trim();
+        } else if (line.startsWith('RRULE:')) {
+          rrule = line.slice(6).trim();
         }
       }
-      if (!summary || dtStart.length < 8) continue;
-      const y = dtStart.slice(0, 4);
-      const m = dtStart.slice(4, 6);
-      const d = dtStart.slice(6, 8);
-      const dateISO = `${y}-${m}-${d}`;
-      let isAllDay = true;
-      let timeLabel = 'Seharian';
-      if (dtStart.includes('T') && dtStart.length >= 13) {
-        isAllDay = false;
-        const hh = dtStart.slice(9, 11);
-        const mm = dtStart.slice(11, 13);
-        if (dtStart.endsWith('Z')) {
-          const utc = new Date(`${y}-${m}-${d}T${hh}:${mm}:00Z`);
-          if (!isNaN(utc.getTime())) {
-            timeLabel = utc.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      if (!summary || !dtStartRaw) continue;
+      const parsedStart = MakiMainController.parseICSDate(dtStartRaw);
+      if (!parsedStart) continue;
+
+      const cleanTitle = summary
+        .replace(/\\,/g, ',')
+        .replace(/\\;/g, ';')
+        .replace(/\\n/g, ' ')
+        .replace(/\\\\/g, '\\')
+        .trim();
+      const baseId = uid || crypto.randomUUID();
+
+      if (rrule) {
+        const instances = MakiMainController.expandRecurrence(parsedStart, rrule, now, 30, 90);
+        for (const inst of instances) {
+          const dedupeKey = `${baseId}_${inst.dateISO}`;
+          if (seenKeys.has(dedupeKey)) continue;
+          seenKeys.add(dedupeKey);
+          results.push({
+            id: dedupeKey,
+            title: cleanTitle,
+            dateISO: inst.dateISO,
+            timeLabel: inst.timeLabel,
+            isAllDay: inst.isAllDay,
+            source: 'Google',
+            colorHex: '#4dabf7',
+          });
+        }
+      } else {
+        if (parsedStart.dateISO >= windowStartISO && parsedStart.dateISO <= windowEndISO) {
+          const dedupeKey = `${baseId}_${parsedStart.dateISO}`;
+          if (!seenKeys.has(dedupeKey)) {
+            seenKeys.add(dedupeKey);
+            results.push({
+              id: dedupeKey,
+              title: cleanTitle,
+              dateISO: parsedStart.dateISO,
+              timeLabel: parsedStart.timeLabel,
+              isAllDay: parsedStart.isAllDay,
+              source: 'Google',
+              colorHex: '#4dabf7',
+            });
           }
-        } else {
-          timeLabel = `${hh}:${mm}`;
         }
       }
-      results.push({
-        id: uid || crypto.randomUUID(),
-        title: summary.replace(/\\,/g, ',').replace(/\\n/g, ' '),
-        dateISO,
-        timeLabel,
-        isAllDay,
-        source: 'Google',
-        colorHex: '#4dabf7',
-      });
     }
-    return results.slice(0, 200);
+
+    results.sort((a, b) => {
+      const c = a.dateISO.localeCompare(b.dateISO);
+      if (c !== 0) return c;
+      return a.timeLabel.localeCompare(b.timeLabel);
+    });
+
+    return results.slice(0, 300);
   }
 
   // --- Launcher Native Icons ---
@@ -2017,6 +2254,13 @@ class MakiMainController {
     setInterval(() => {
       this.tickAutonomousLife();
     }, 6000);
+
+    // 7. Periodic Google / Outlook Calendar (.ics) Re-sync (every 30 minutes)
+    setInterval(() => {
+      if (this.googleICSUrl) {
+        void this.syncGoogleICS(this.googleICSUrl);
+      }
+    }, 30 * 60 * 1000);
   }
 
   private pollClipboard() {
@@ -2150,12 +2394,62 @@ class MakiMainController {
     });
 
     ipcMain.on('maki:start-drag', (ev, filePath: string) => {
-      if (!filePath || !fs.existsSync(filePath)) return;
-      const iconImg = nativeImage.createFromPath(this.getAssetPath('tray.png'));
-      ev.sender.startDrag({
-        file: filePath,
-        icon: iconImg.isEmpty() ? nativeImage.createEmpty() : iconImg.resize({ width: 32, height: 32 }),
-      });
+      if (!filePath) return;
+      const fullPath = path.resolve(filePath);
+      if (!fs.existsSync(fullPath)) return;
+
+      let dragIcon: Electron.NativeImage | string = '';
+      try {
+        const iconPath = this.getAssetPath('tray.png');
+        if (fs.existsSync(iconPath)) {
+          const buf = fs.readFileSync(iconPath);
+          const img = nativeImage.createFromBuffer(buf);
+          if (!img.isEmpty()) {
+            dragIcon = img.resize({ width: 32, height: 32 });
+          }
+        }
+      } catch (err) {
+        console.warn('[Drag] Failed loading tray.png buffer:', err);
+      }
+
+      if (!dragIcon || (typeof dragIcon !== 'string' && dragIcon.isEmpty())) {
+        try {
+          const fallbackPath = this.getAssetPath('icon.png');
+          if (fs.existsSync(fallbackPath)) {
+            const buf = fs.readFileSync(fallbackPath);
+            const img = nativeImage.createFromBuffer(buf);
+            if (!img.isEmpty()) {
+              dragIcon = img.resize({ width: 32, height: 32 });
+            }
+          }
+        } catch {}
+      }
+
+      if (!dragIcon || (typeof dragIcon !== 'string' && dragIcon.isEmpty())) {
+        dragIcon = nativeImage.createFromBitmap(Buffer.alloc(32 * 32 * 4, 255), { width: 32, height: 32 });
+      }
+
+      this.isNativeFileDragging = true;
+      if (this.islandWin && !this.islandWin.isDestroyed()) {
+        this.islandWin.setIgnoreMouseEvents(false);
+      }
+
+      try {
+        ev.sender.startDrag({
+          file: fullPath,
+          icon: dragIcon,
+        });
+      } catch (err) {
+        console.error('[maki:start-drag] Error invoking startDrag:', err);
+      } finally {
+        setTimeout(() => {
+          this.isNativeFileDragging = false;
+        }, 500);
+      }
+    });
+
+    ipcMain.on('maki:end-drag', () => {
+      this.isNativeFileDragging = false;
     });
 
     ipcMain.on('maki:desktop-context-menu', () => {

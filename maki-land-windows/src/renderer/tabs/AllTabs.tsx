@@ -32,6 +32,13 @@ export const AudioWaveform: React.FC<{ isPlaying: boolean; color?: string; bars?
   </div>
 );
 
+export function formatLocalISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // 1. ✨ maki-land Tab (Media Now Playing + Calendar Glance)
 export const MakiLandTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   const [dayOffset, setDayOffset] = useState(0);
@@ -40,9 +47,15 @@ export const MakiLandTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   const [evTime, setEvTime] = useState('09:00');
   const [icsDraft, setIcsDraft] = useState(state.googleICSUrl);
 
+  useEffect(() => {
+    if (state.googleICSUrl && !icsDraft) {
+      setIcsDraft(state.googleICSUrl);
+    }
+  }, [state.googleICSUrl]);
+
   const targetDate = new Date();
   targetDate.setDate(targetDate.getDate() + dayOffset);
-  const targetISO = targetDate.toISOString().slice(0, 10);
+  const targetISO = formatLocalISO(targetDate);
   const dateLabel = targetDate.toLocaleDateString('id-ID', {
     weekday: 'short',
     day: 'numeric',
@@ -194,7 +207,7 @@ export const MakiLandTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
 
         {state.isShowingCalendarSettings ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ fontSize: 8.8, color: 'rgba(255,255,255,0.65)' }}>
+            <div style={{ fontSize: 8.8, color: 'rgba(255,255,255,0.75)' }}>
               Tempel Secret Address iCal (<code>.ics</code>) dari Google Calendar / Outlook:
             </div>
             <div style={{ display: 'flex', gap: 5 }}>
@@ -220,9 +233,16 @@ export const MakiLandTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                 {state.isSyncingICS ? '...' : 'Sinkron'}
               </button>
             </div>
-            {state.calendarError && (
+            {state.calendarError ? (
               <div style={{ fontSize: 8.5, color: '#fca5a5' }}>{state.calendarError}</div>
-            )}
+            ) : state.googleICSUrl ? (
+              <div style={{ fontSize: 8.5, color: '#86efac' }}>
+                ✓ Terhubung ({state.calendarEvents.filter((e) => e.source === 'Google').length} jadwal Google Calendar tersinkron)
+              </div>
+            ) : null}
+            <div style={{ fontSize: 8.2, color: 'rgba(255,255,255,0.45)', lineHeight: 1.3 }}>
+              💡 Petunjuk: Di Google Calendar Web, buka Pengaturan &gt; Pilih Kalender &gt; Integrasikan Kalender &gt; Salin <b>Alamat rahasia dalam format iCal</b>
+            </div>
           </div>
         ) : addingEvent ? (
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -1137,6 +1157,23 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
           </span>
           <button
             className="pill-btn"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/plain', studioItem.path);
+              e.dataTransfer.effectAllowed = 'copyMove';
+              e.preventDefault();
+              window.maki.startNativeFileDrag(studioItem.path);
+            }}
+            onDragEnd={() => {
+              window.maki.endNativeFileDrag();
+            }}
+            style={{ cursor: 'grab', background: 'rgba(34,211,238,0.22)', color: '#22d3ee' }}
+            title="Tarik keluar file hasil studio ini ke Explorer / WhatsApp / Desktop"
+          >
+            ⠿ Tarik Keluar
+          </button>
+          <button
+            className="pill-btn"
             onClick={() => void dispatchMaki('revealTrayItem', { id: studioItem.id })}
           >
             📂 Explorer
@@ -1352,8 +1389,13 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                 key={item.id}
                 draggable
                 onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', item.path);
+                  e.dataTransfer.effectAllowed = 'copyMove';
                   e.preventDefault();
                   window.maki.startNativeFileDrag(item.path);
+                }}
+                onDragEnd={() => {
+                  window.maki.endNativeFileDrag();
                 }}
                 style={{
                   display: 'flex',
@@ -1365,19 +1407,42 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                   border: '1px solid rgba(255,255,255,0.12)',
                   flexShrink: 0,
                   cursor: 'grab',
+                  userSelect: 'none',
                 }}
-                title="Tarik keluar langsung ke Explorer / WhatsApp / Aplikasi lain!"
+                title="Tahan & Tarik keluar file ini ke Explorer / WhatsApp / Desktop / Aplikasi lain!"
               >
+                <span
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.45,
+                    cursor: 'grab',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                  title="Tarik keluar"
+                >
+                  ⠿
+                </span>
                 {item.thumbnailDataUrl ? (
                   <img
                     src={item.thumbnailDataUrl}
                     alt={item.name}
-                    style={{ width: 34, height: 28, objectFit: 'cover', borderRadius: 5 }}
+                    draggable={false}
+                    style={{
+                      width: 34,
+                      height: 28,
+                      objectFit: 'cover',
+                      borderRadius: 5,
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                    }}
                   />
                 ) : (
-                  <span style={{ fontSize: 18 }}>{item.kind === 'pdf' ? '📕' : '📄'}</span>
+                  <span style={{ fontSize: 18, pointerEvents: 'none', userSelect: 'none' }}>
+                    {item.kind === 'pdf' ? '📕' : '📄'}
+                  </span>
                 )}
-                <div style={{ maxWidth: 112 }}>
+                <div style={{ maxWidth: 112, pointerEvents: 'none', userSelect: 'none' }}>
                   <div
                     style={{
                       fontSize: 10,
@@ -1393,9 +1458,13 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                     {item.badgeText} • {item.sizeFormatted}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 3 }}>
+                <div
+                  style={{ display: 'flex', gap: 3 }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
                   <button
                     className="pill-btn"
+                    draggable={false}
                     style={{ padding: '2px 6px' }}
                     onClick={() => void dispatchMaki('copyTrayItem', { id: item.id })}
                   >
@@ -1404,6 +1473,7 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                   {item.kind === 'image' && (
                     <button
                       className="pill-btn"
+                      draggable={false}
                       style={{ padding: '2px 5px', background: 'rgba(251,146,60,0.22)' }}
                       onClick={() => void dispatchMaki('askMakiAboutItem', { id: item.id })}
                       title="Tanya Maki AI tentang gambar ini"
@@ -1413,12 +1483,14 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                   )}
                   <button
                     className="pill-btn"
+                    draggable={false}
                     style={{ padding: '2px 6px' }}
                     onClick={() => void dispatchMaki('openStudioItem', { id: item.id })}
                   >
                     Studio
                   </button>
                   <button
+                    draggable={false}
                     onClick={() => void dispatchMaki('removeTrayItem', { id: item.id })}
                     style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.45)', padding: '0 3px' }}
                   >

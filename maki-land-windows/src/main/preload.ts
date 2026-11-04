@@ -9,6 +9,7 @@ export const makiBridge = {
   },
   dispatch: (action: string, payload?: unknown) => ipcRenderer.invoke('maki:dispatch', action, payload),
   startNativeFileDrag: (filePath: string) => ipcRenderer.send('maki:start-drag', filePath),
+  endNativeFileDrag: () => ipcRenderer.send('maki:end-drag'),
   setCompactHover: (hovering: boolean) => ipcRenderer.send('maki:compact-hover', hovering),
   setDropHold: (holding: boolean) => ipcRenderer.send('maki:drop-hold', holding),
   desktopDragStart: (screenX: number, screenY: number) =>
