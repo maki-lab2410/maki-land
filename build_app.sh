@@ -59,7 +59,7 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.6</string>
+    <string>1.0.7</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
@@ -68,6 +68,10 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>maki-land memerlukan izin kamera untuk fitur Cermin Webcam di Notch.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>maki-land memerlukan izin mikrofon untuk fitur perekam memo suara dan pengontrol mic.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>maki-land memerlukan akses untuk membaca informasi lagu dan mengontrol pemutaran musik.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>

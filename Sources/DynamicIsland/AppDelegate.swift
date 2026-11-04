@@ -100,6 +100,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         desktopCapyItem.target = self
         menu.addItem(desktopCapyItem)
 
+        let mirrorItem = NSMenuItem(
+            title: "🪞 Cermin Kamera (Mirror)",
+            action: #selector(openCameraMirror),
+            keyEquivalent: "m"
+        )
+        mirrorItem.target = self
+        menu.addItem(mirrorItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // Quick Tab Switcher Submenu
@@ -159,6 +167,12 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func toggleDesktopCapy() {
         CapybaraService.shared.toggleDesktopMode()
+    }
+
+    @objc private func openCameraMirror() {
+        IslandState.shared.isExpanded = true
+        IslandState.shared.isShowingCameraMirror = true
+        IslandController.shared.panel?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func toggleAutoLaunch(_ sender: NSMenuItem) {

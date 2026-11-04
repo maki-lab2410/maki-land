@@ -47,13 +47,17 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.0.6</string>
+              <string>1.0.7</string>
               <key>LSMinimumSystemVersion</key>
               <string>13.0</string>
               <key>LSUIElement</key>
               <true/>
               <key>CFBundleIconFile</key>
               <string>AppIcon</string>
+              <key>NSCameraUsageDescription</key>
+              <string>maki-land memerlukan izin kamera untuk fitur Cermin Webcam di Notch.</string>
+              <key>NSMicrophoneUsageDescription</key>
+              <string>maki-land memerlukan izin mikrofon untuk fitur perekam memo suara dan pengontrol mic.</string>
           </dict>
           </plist>
           EOF

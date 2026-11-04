@@ -47,6 +47,9 @@ public class IslandState: ObservableObject {
     @Published public var isShowingUpdateModal: Bool = false {
         didSet { notifySize() }
     }
+    @Published public var isShowingCameraMirror: Bool = false {
+        didSet { notifySize() }
+    }
 
     public var onSizeChange: ((CGSize) -> Void)?
     public private(set) var collapseCooldownUntil: Date = .distantPast
@@ -67,6 +70,9 @@ public class IslandState: ObservableObject {
         }
         if isShowingUpdateModal {
             return CGSize(width: 660, height: 215)
+        }
+        if isShowingCameraMirror {
+            return CGSize(width: 660, height: 265)
         }
         switch selectedTab {
         case .tray:
@@ -295,6 +301,8 @@ public struct IslandRootView: View {
                 OnboardingView()
             } else if state.isShowingUpdateModal {
                 UpdateDialogView()
+            } else if state.isShowingCameraMirror {
+                CameraMirrorView()
             } else {
                 // Scrollable Tab Bar
                 HStack(spacing: 6) {
@@ -347,6 +355,27 @@ public struct IslandRootView: View {
                         .buttonStyle(.plain)
                         .help("Versi baru v\(updater.latestVersion) tersedia!")
                     }
+
+                    // Mirror / Camera Quick Button
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            state.isShowingCameraMirror.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("🪞")
+                                .font(.system(size: 10))
+                            Text("Mirror")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(state.isShowingCameraMirror ? Color.purple.opacity(0.38) : Color.purple.opacity(0.18))
+                        .foregroundColor(state.isShowingCameraMirror ? .white : Color.purple.opacity(0.9))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Buka Cermin Kamera (Mirror Webcam)")
 
                     // Help / Onboarding Guide Button
                     Button {
