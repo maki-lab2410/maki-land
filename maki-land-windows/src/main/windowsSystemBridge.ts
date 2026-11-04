@@ -1,4 +1,5 @@
 import os from 'node:os';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { SystemMetrics, TrackInfo } from '../shared/types';
 
@@ -37,7 +38,7 @@ function runPowerShell(script: string, timeoutMs = 3500): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      ['-NoProfile', '-NonInteractive', '-Sta', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', script],
       { timeout: timeoutMs, windowsHide: true },
       (err, stdout) => {
         if (err) {
@@ -250,8 +251,32 @@ $h = [MicCmd]::GetForegroundWindow()
 
 export async function copyFileToWindowsClipboard(filePath: string): Promise<boolean> {
   if (!isWin) return false;
-  const escaped = filePath.replace(/'/g, "''");
-  const ps = `Set-Clipboard -LiteralPath '${escaped}'`;
-  await runPowerShell(ps, 2500);
-  return true;
+  try {
+    const normalized = path.win32 ? path.win32.normalize(path.resolve(filePath)) : path.resolve(filePath);
+    const escaped = normalized.replace(/'/g, "''");
+    const isImage = /\.(png|jpe?g|bmp|gif|webp)$/i.test(normalized);
+    // Win32 CF_HDROP clipboard format via PowerShell 5.1 / 7 compatible .NET Forms API
+    // SetDataObject($data, $true) ensures the clipboard content persists after the PowerShell process exits
+    const ps = `
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$data = New-Object System.Windows.Forms.DataObject
+$col = New-Object System.Collections.Specialized.StringCollection
+$col.Add('${escaped}')
+$data.SetFileDropList($col)
+if ('${isImage ? 'true' : 'false'}' -eq 'true') {
+  try {
+    $img = [System.Drawing.Image]::FromFile('${escaped}')
+    $data.SetImage($img)
+  } catch {}
+}
+[System.Windows.Forms.Clipboard]::SetDataObject($data, $true)
+`;
+    await runPowerShell(ps, 3000);
+    return true;
+  } catch (err) {
+    console.error('[copyFileToWindowsClipboard] Error:', err);
+    return false;
+  }
 }

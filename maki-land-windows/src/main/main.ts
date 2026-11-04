@@ -13,6 +13,7 @@ import {
   nativeImage,
   powerMonitor,
   screen,
+  session,
   shell,
   Tray,
 } from 'electron';
@@ -45,6 +46,7 @@ import {
   pollWindowsStatusOnce,
   sendWindowsMediaControl,
   toggleWindowsMicMute,
+  copyFileToWindowsClipboard,
 } from './windowsSystemBridge';
 import { StudioService } from './studioService';
 import { GeminiManager } from './geminiService';
@@ -373,6 +375,25 @@ class MakiMainController {
     await this.hydrateLauncherIcons();
     if (this.googleICSUrl) {
       void this.syncGoogleICS(this.googleICSUrl);
+    }
+
+    // Grant microphone and audio recording permissions for voice recorder feature
+    try {
+      session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+        if (permission === 'media') {
+          callback(true);
+          return;
+        }
+        callback(false);
+      });
+      session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+        if (permission === 'media') {
+          return true;
+        }
+        return false;
+      });
+    } catch (err) {
+      console.warn('[Session Permissions] Warning configuring media permissions:', err);
     }
 
     this.createIslandWindow();
@@ -2474,10 +2495,22 @@ class MakiMainController {
       this.scheduleBroadcast();
     });
 
+    ipcMain.on('maki:prepare-drag', () => {
+      this.isNativeFileDragging = true;
+      if (this.islandWin && !this.islandWin.isDestroyed()) {
+        this.islandWin.setIgnoreMouseEvents(false);
+      }
+    });
+
     ipcMain.on('maki:start-drag', (ev, filePath: string) => {
       if (!filePath) return;
-      const fullPath = path.resolve(filePath);
+      const fullPath = path.win32 ? path.win32.normalize(path.resolve(filePath)) : path.resolve(filePath);
       if (!fs.existsSync(fullPath)) return;
+
+      this.isNativeFileDragging = true;
+      if (this.islandWin && !this.islandWin.isDestroyed()) {
+        this.islandWin.setIgnoreMouseEvents(false);
+      }
 
       let dragIcon: Electron.NativeImage | string = '';
       try {
@@ -2510,11 +2543,6 @@ class MakiMainController {
         dragIcon = nativeImage.createFromBitmap(Buffer.alloc(32 * 32 * 4, 255), { width: 32, height: 32 });
       }
 
-      this.isNativeFileDragging = true;
-      if (this.islandWin && !this.islandWin.isDestroyed()) {
-        this.islandWin.setIgnoreMouseEvents(false);
-      }
-
       try {
         ev.sender.startDrag({
           file: fullPath,
@@ -2525,13 +2553,55 @@ class MakiMainController {
       } finally {
         setTimeout(() => {
           this.isNativeFileDragging = false;
-        }, 500);
+        }, 1500);
       }
     });
 
     ipcMain.on('maki:end-drag', () => {
       this.isNativeFileDragging = false;
     });
+
+    ipcMain.handle(
+      'maki:save-voice-recording',
+      async (_ev, payload: { base64Data: string; durationSec: number; mimeType?: string }) => {
+        try {
+          if (!payload?.base64Data) {
+            return { success: false, error: 'Data rekaman kosong' };
+          }
+          const docs = app.getPath('documents') || os.homedir();
+          const audioDir = path.join(docs, 'maki-land Audio');
+          fs.mkdirSync(audioDir, { recursive: true });
+
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+          const isWebm = (payload.mimeType || '').includes('webm');
+          const ext = isWebm ? 'webm' : 'wav';
+          const fileName = `Rekaman_${timestamp}.${ext}`;
+          const targetPath = path.join(audioDir, fileName);
+
+          const buf = Buffer.from(payload.base64Data, 'base64');
+          fs.writeFileSync(targetPath, buf);
+
+          await this.studio.addFilePaths([targetPath], false);
+          if (process.platform === 'win32') {
+            await copyFileToWindowsClipboard(targetPath);
+          }
+
+          const durSec = Math.round(payload.durationSec || 0);
+          this.studio.showBanner(`🎙️ Rekaman "${fileName}" (${durSec}dtk) tersimpan di Tray & Clipboard! 📋`);
+          if (this.isOnDesktop) {
+            this.showDesktopBubble(`🎙️ Rekaman suaramu masuk Tray! Siap dipaste (Ctrl+V) atau ditarik ya~ 🐾`, 5500);
+          }
+          this.scheduleBroadcast();
+
+          return { success: true, filePath: targetPath, fileName };
+        } catch (err: any) {
+          console.error('[maki:save-voice-recording] Error saving recording:', err);
+          return { success: false, error: err?.message || String(err) };
+        }
+      }
+    );
 
     ipcMain.on('maki:desktop-context-menu', () => {
       this.showDesktopRightClickMenu();
@@ -3052,11 +3122,35 @@ class MakiMainController {
         break;
       case 'askMakiAboutItem': {
         const item = this.studio.getSnapshot().droppedItems.find((i) => i.id === String(p.id));
-        if (item && item.kind === 'image') {
-          this.gemini.attachImageFromPath(item.path);
+        if (item) {
+          if (item.kind === 'image') {
+            this.gemini.attachImageFromPath(item.path);
+          }
           this.gemini.isNotchChatMode = true;
           this.selectedTab = 'Capy';
           this.setExpanded(true);
+          if (item.kind === 'audio') {
+            void this.gemini.sendMessage(`Maki, tolong bantu rangkum atau beri catatan untuk file rekaman suara "${item.name}" ini ya! 🎙️`, {
+              onStartThinking: () => {
+                this.currentAction = 'typingLaptop';
+                if (this.isOnDesktop && !this.gemini.isDesktopChatOpen) {
+                  this.showDesktopBubble('bentar ya kubantu rangkum.. 🎧', 4000);
+                }
+              },
+              onReplySuccess: (preview) => {
+                this.xp += 4;
+                this.mood = Math.min(100, this.mood + 2);
+                this.currentAction = 'happyPet';
+                this.savePersisted();
+                if (this.isOnDesktop && !this.gemini.isDesktopChatOpen) {
+                  this.showDesktopBubble(preview, 4200);
+                }
+              },
+              onReplyError: () => {
+                this.currentAction = 'chill';
+              },
+            });
+          }
         }
         break;
       }

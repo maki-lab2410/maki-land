@@ -32,6 +32,326 @@ export const AudioWaveform: React.FC<{ isPlaying: boolean; color?: string; bars?
   </div>
 );
 
+export function audioBufferToWav(ab: AudioBuffer): ArrayBuffer {
+  const numChannels = ab.numberOfChannels;
+  const sampleRate = ab.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const length = ab.length;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = length * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeString(offset: number, str: string) {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  }
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(ab.getChannelData(c));
+  }
+  for (let i = 0; i < length; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let sample = channels[c][i];
+      sample = Math.max(-1, Math.min(1, sample));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+  return buffer;
+}
+
+export const LiveMicVisualizer: React.FC<{ stream: MediaStream | null }> = ({ stream }) => {
+  const [volumeBars, setVolumeBars] = useState<number[]>([4, 6, 8, 5, 7, 4, 6]);
+
+  useEffect(() => {
+    if (!stream) return;
+    let animId: number;
+    let audioCtx: AudioContext | null = null;
+    try {
+      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      audioCtx = new AudioCtxClass();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 32;
+      source.connect(analyser);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const update = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const bars: number[] = [];
+        for (let i = 0; i < 7; i++) {
+          const val = dataArray[i * 2] || 0;
+          const height = Math.max(3, Math.min(18, Math.round((val / 255) * 18)));
+          bars.push(height);
+        }
+        setVolumeBars(bars);
+        animId = requestAnimationFrame(update);
+      };
+      animId = requestAnimationFrame(update);
+    } catch {
+      // fallback
+    }
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        void audioCtx.close();
+      }
+    };
+  }, [stream]);
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2.5, height: 18 }}>
+      {volumeBars.map((h, i) => (
+        <span
+          key={i}
+          style={{
+            width: 3,
+            height: h,
+            borderRadius: 99,
+            background: '#ef4444',
+            transition: 'height 0.08s ease',
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+export const VoiceRecorderPanel: React.FC<{
+  onClose: () => void;
+  onSaved?: (filePath: string) => void;
+}> = ({ onClose, onSaved }) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const chunksRef = React.useRef<Blob[]>([]);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const startRecording = async () => {
+    try {
+      setErrorMsg(null);
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setStream(mediaStream);
+      chunksRef.current = [];
+
+      let mimeType = 'audio/webm';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        }
+      }
+
+      const mr = new MediaRecorder(mediaStream, { mimeType });
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+      mr.start(250);
+      setRecorder(mr);
+      setDuration(0);
+
+      timerRef.current = setInterval(() => {
+        setDuration((d) => d + 1);
+      }, 1000);
+    } catch (err: unknown) {
+      console.error('[VoiceRecorder] Error accessing microphone:', err);
+      setErrorMsg('Gagal akses mikrofon. Pastikan mikrofon terpasang & izin aktif.');
+    }
+  };
+
+  const stopAndSave = async () => {
+    if (!recorder || recorder.state === 'inactive') return;
+    setIsSaving(true);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    recorder.onstop = async () => {
+      try {
+        const rawBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        let finalBase64 = '';
+        let finalMime = 'audio/wav';
+
+        try {
+          const arrayBuf = await rawBlob.arrayBuffer();
+          const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          const audioCtx = new AudioCtxClass();
+          const decoded = await audioCtx.decodeAudioData(arrayBuf);
+          const wavBuf = audioBufferToWav(decoded);
+          const uint8 = new Uint8Array(wavBuf);
+          let binary = '';
+          for (let i = 0; i < uint8.byteLength; i++) {
+            binary += String.fromCharCode(uint8[i]);
+          }
+          finalBase64 = btoa(binary);
+          finalMime = 'audio/wav';
+          if (audioCtx.state !== 'closed') void audioCtx.close();
+        } catch {
+          const arrayBuf = await rawBlob.arrayBuffer();
+          const uint8 = new Uint8Array(arrayBuf);
+          let binary = '';
+          for (let i = 0; i < uint8.byteLength; i++) {
+            binary += String.fromCharCode(uint8[i]);
+          }
+          finalBase64 = btoa(binary);
+          finalMime = 'audio/webm';
+        }
+
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+        }
+
+        const res = await window.maki.saveVoiceRecording(finalBase64, duration, finalMime);
+        if (res.success && res.filePath) {
+          onSaved?.(res.filePath);
+        }
+        onClose();
+      } catch (err: unknown) {
+        console.error('[VoiceRecorder] Error saving audio:', err);
+        setErrorMsg('Gagal menyimpan rekaman.');
+        setIsSaving(false);
+      }
+    };
+
+    recorder.stop();
+  };
+
+  const cancelRecording = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (recorder && recorder.state !== 'inactive') {
+      try {
+        recorder.stop();
+      } catch {}
+    }
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    void startRecording();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  const formatTime = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '7px 12px',
+        borderRadius: 12,
+        background: 'linear-gradient(135deg, rgba(239,68,68,0.22), rgba(220,38,38,0.12))',
+        border: '1.5px solid rgba(239,68,68,0.45)',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#ef4444',
+            boxShadow: '0 0 7px #ef4444',
+          }}
+        />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#ef4444' }}>
+          {isSaving ? 'Menyimpan...' : `🔴 REKAM ${formatTime(duration)}`}
+        </span>
+      </div>
+
+      <LiveMicVisualizer stream={stream} />
+
+      {errorMsg ? (
+        <span style={{ fontSize: 9, color: '#fca5a5', flex: 1 }}>{errorMsg}</span>
+      ) : (
+        <span
+          style={{
+            fontSize: 8.8,
+            color: 'rgba(255,255,255,0.68)',
+            flex: 1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          Bicaralah ke mikrofon. Rekaman otomatis masuk Tray & siap dipaste (Ctrl+V)!
+        </span>
+      )}
+
+      <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+        <button
+          className="pill-btn"
+          disabled={isSaving}
+          onClick={() => void stopAndSave()}
+          style={{
+            background: 'rgba(34,197,94,0.3)',
+            color: '#4ade80',
+            fontWeight: 700,
+            padding: '3px 9px',
+          }}
+          title="Simpan rekaman ke Tray dan Dokumen Windows"
+        >
+          ⏹️ Selesai & Simpan
+        </button>
+        <button
+          className="pill-btn"
+          disabled={isSaving}
+          onClick={cancelRecording}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.7)',
+            padding: '3px 7px',
+          }}
+        >
+          ✕ Batal
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export function formatLocalISO(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -645,6 +965,7 @@ export const NotesTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   const [todoInput, setTodoInput] = useState('');
   const [isTodoMaximized, setIsTodoMaximized] = useState(false);
   const [viewingTodo, setViewingTodo] = useState<TodoItem | null>(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -665,8 +986,33 @@ export const NotesTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#facc15' }}>📝 Scratchpad</span>
-              <span style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.45)' }}>Ctrl+Enter → To-Do</span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  className="pill-btn"
+                  onClick={() => setIsRecordingVoice(!isRecordingVoice)}
+                  style={{
+                    padding: '1.5px 6px',
+                    fontSize: 8.5,
+                    background: isRecordingVoice ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)',
+                    color: isRecordingVoice ? '#ef4444' : 'rgba(255,255,255,0.7)',
+                  }}
+                  title="Rekam catatan suara ke Tray dan Scratchpad"
+                >
+                  🎙️ {isRecordingVoice ? 'Batal Rekam' : 'Rekam Suara'}
+                </button>
+                <span style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.45)' }}>Ctrl+Enter → To-Do</span>
+              </div>
             </div>
+            {isRecordingVoice && (
+              <VoiceRecorderPanel
+                onClose={() => setIsRecordingVoice(false)}
+                onSaved={(filePath) => {
+                  const base = filePath.split(/[/\\]/).pop() || 'Rekaman Suara';
+                  const addition = `\n[🎙️ Catatan Suara: ${base} tersimpan di Dokumen & Tray]`;
+                  void dispatchMaki('setScratchpad', { text: (state.scratchpadText || '') + addition });
+                }}
+              />
+            )}
             <textarea
               value={state.scratchpadText}
               onChange={(e) => void dispatchMaki('setScratchpad', { text: e.target.value })}
@@ -1127,6 +1473,9 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
   const [splitRange, setSplitRange] = useState('1-2');
   const [wmText, setWmText] = useState('CONFIDENTIAL');
   const [renameVal, setRenameVal] = useState('');
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioPlayerRef = React.useRef<HTMLAudioElement | null>(null);
 
   const studioItem = state.droppedItems.find((i) => i.id === state.activeStudioItemId) || null;
   const mergeableCount = state.droppedItems.filter(
@@ -1158,6 +1507,7 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
           <button
             className="pill-btn"
             draggable
+            onMouseDown={() => window.maki.prepareNativeDrag()}
             onDragStart={(e) => {
               e.dataTransfer.setData('text/plain', studioItem.path);
               e.dataTransfer.effectAllowed = 'copyMove';
@@ -1171,6 +1521,14 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
             title="Tarik keluar file hasil studio ini ke Explorer / WhatsApp / Desktop"
           >
             ⠿ Tarik Keluar
+          </button>
+          <button
+            className="pill-btn"
+            onClick={() => void dispatchMaki('copyTrayItem', { id: studioItem.id })}
+            style={{ background: 'rgba(59,130,246,0.24)', color: '#60a5fa' }}
+            title="Salin file ke clipboard untuk langsung dipaste (Ctrl+V) di Windows Explorer / Desktop / WhatsApp"
+          >
+            📋 Salin (Ctrl+V)
           </button>
           <button
             className="pill-btn"
@@ -1344,6 +1702,13 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
       }}
       style={{ display: 'flex', flexDirection: 'column', gap: 7, width: '100%', height: '100%' }}
     >
+      {isRecordingVoice && (
+        <VoiceRecorderPanel
+          onClose={() => setIsRecordingVoice(false)}
+          onSaved={() => setIsRecordingVoice(false)}
+        />
+      )}
+
       {state.droppedItems.length === 0 ? (
         <div
           style={{
@@ -1360,12 +1725,20 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
           <span style={{ fontSize: 22 }}>📥</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 11, fontWeight: 700 }}>
-              Kasih Screenshot (Win+Shift+S) atau File ke Maki / Tray
+              Kasih Screenshot (Win+Shift+S), Suara, atau File ke Maki / Tray
             </div>
             <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.52)' }}>
-              Tarik file dari Explorer ke Maki biar masuk Tray & siap ditarik keluar kapan saja
+              Tarik file dari Explorer ke Maki biar masuk Tray & siap ditarik keluar atau dipaste kapan saja
             </div>
           </div>
+          <button
+            className="pill-btn"
+            onClick={() => setIsRecordingVoice(true)}
+            style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171' }}
+            title="Rekam suara langsung ke Tray & Windows Documents"
+          >
+            🎙️ Rekam Suara
+          </button>
           <button
             className="pill-btn"
             onClick={() => void dispatchMaki('grabScreenshot')}
@@ -1388,6 +1761,7 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
               <div
                 key={item.id}
                 draggable
+                onMouseDown={() => window.maki.prepareNativeDrag()}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', item.path);
                   e.dataTransfer.effectAllowed = 'copyMove';
@@ -1412,18 +1786,54 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                 title="Tahan & Tarik keluar file ini ke Explorer / WhatsApp / Desktop / Aplikasi lain!"
               >
                 <span
+                  onMouseDown={() => window.maki.prepareNativeDrag()}
                   style={{
                     fontSize: 11,
                     opacity: 0.45,
                     cursor: 'grab',
-                    pointerEvents: 'none',
                     userSelect: 'none',
                   }}
                   title="Tarik keluar"
                 >
                   ⠿
                 </span>
-                {item.thumbnailDataUrl ? (
+                {item.kind === 'audio' ? (
+                  <button
+                    className="pill-btn"
+                    draggable={false}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (playingAudioId === item.id) {
+                        if (audioPlayerRef.current) audioPlayerRef.current.pause();
+                        setPlayingAudioId(null);
+                        return;
+                      }
+                      if (audioPlayerRef.current) audioPlayerRef.current.pause();
+                      if (item.thumbnailDataUrl) {
+                        const a = new Audio(item.thumbnailDataUrl);
+                        audioPlayerRef.current = a;
+                        a.onended = () => setPlayingAudioId(null);
+                        a.play().catch(() => {});
+                        setPlayingAudioId(item.id);
+                      }
+                    }}
+                    style={{
+                      width: 34,
+                      height: 28,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: playingAudioId === item.id ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)',
+                      color: playingAudioId === item.id ? '#ef4444' : '#fff',
+                      fontSize: 12,
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                    }}
+                    title={playingAudioId === item.id ? 'Pause rekaman' : 'Putar rekaman suara'}
+                  >
+                    {playingAudioId === item.id ? '⏸' : '▶'}
+                  </button>
+                ) : item.thumbnailDataUrl ? (
                   <img
                     src={item.thumbnailDataUrl}
                     alt={item.name}
@@ -1454,8 +1864,11 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                   >
                     {item.name}
                   </div>
-                  <div style={{ fontSize: 8.5, color: '#22d3ee' }}>
-                    {item.badgeText} • {item.sizeFormatted}
+                  <div style={{ fontSize: 8.5, color: '#22d3ee', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{item.badgeText} • {item.sizeFormatted}</span>
+                    {item.kind === 'audio' && playingAudioId === item.id && (
+                      <AudioWaveform isPlaying={true} color="#ef4444" bars={3} />
+                    )}
                   </div>
                 </div>
                 <div
@@ -1465,18 +1878,19 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
                   <button
                     className="pill-btn"
                     draggable={false}
-                    style={{ padding: '2px 6px' }}
+                    style={{ padding: '2px 7px', background: 'rgba(59,130,246,0.24)', color: '#60a5fa' }}
                     onClick={() => void dispatchMaki('copyTrayItem', { id: item.id })}
+                    title="Salin file ke clipboard untuk langsung dipaste (Ctrl+V) di Windows Explorer / Desktop / WhatsApp"
                   >
-                    Salin
+                    📋 Salin (Ctrl+V)
                   </button>
-                  {item.kind === 'image' && (
+                  {(item.kind === 'image' || item.kind === 'audio') && (
                     <button
                       className="pill-btn"
                       draggable={false}
                       style={{ padding: '2px 5px', background: 'rgba(251,146,60,0.22)' }}
                       onClick={() => void dispatchMaki('askMakiAboutItem', { id: item.id })}
-                      title="Tanya Maki AI tentang gambar ini"
+                      title={item.kind === 'audio' ? 'Tanya Maki AI tentang rekaman suara ini' : 'Tanya Maki AI tentang gambar ini'}
                     >
                       💬
                     </button>
@@ -1503,7 +1917,7 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>
-              {state.droppedItems.length} item • Tarik keluar ke Explorer atau klik Studio
+              {state.droppedItems.length} item • Tarik keluar ke Explorer / Desktop atau klik Salin (Ctrl+V)
             </span>
             {state.trayBanner && (
               <span
@@ -1517,6 +1931,14 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
               </span>
             )}
             <div style={{ flex: 1 }} />
+            <button
+              className="pill-btn"
+              onClick={() => setIsRecordingVoice(true)}
+              style={{ background: 'rgba(239,68,68,0.22)', color: '#f87171' }}
+              title="Rekam suara / audio memo langsung ke Tray"
+            >
+              🎙️ Rekam Suara
+            </button>
             <button
               className="pill-btn"
               onClick={() => void dispatchMaki('grabScreenshot')}

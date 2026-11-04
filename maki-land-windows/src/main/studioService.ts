@@ -9,6 +9,7 @@ import { DroppedItem, DroppedItemKind } from '../shared/types';
 import { copyFileToWindowsClipboard } from './windowsSystemBridge';
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif']);
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.webm', '.m4a', '.ogg', '.aac', '.flac']);
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -20,6 +21,7 @@ export function detectKind(filePath: string): { kind: DroppedItemKind; badge: st
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.pdf') return { kind: 'pdf', badge: 'PDF' };
   if (IMAGE_EXTS.has(ext)) return { kind: 'image', badge: ext.replace('.', '').toUpperCase() || 'IMG' };
+  if (AUDIO_EXTS.has(ext)) return { kind: 'audio', badge: ext.replace('.', '').toUpperCase() || 'AUDIO' };
   const clean = ext.replace('.', '').toUpperCase();
   return { kind: 'other', badge: clean || 'FILE' };
 }
@@ -105,6 +107,15 @@ export class StudioService {
           } catch {
             pageCount = undefined;
           }
+        } else if (kind === 'audio') {
+          try {
+            if (stat.size <= 25 * 1024 * 1024) {
+              const ext = path.extname(rawPath).toLowerCase();
+              const mime = ext === '.wav' ? 'audio/wav' : ext === '.mp3' ? 'audio/mpeg' : 'audio/webm';
+              const buf = fs.readFileSync(rawPath);
+              thumbnailDataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+            }
+          } catch {}
         } else {
           try {
             const icon = await app.getFileIcon(rawPath, { size: 'normal' });
@@ -235,23 +246,25 @@ export class StudioService {
     const item = this.items.find((x) => x.id === id);
     if (!item || !fs.existsSync(item.path)) return false;
 
-    if (item.kind === 'image') {
-      const img = nativeImage.createFromPath(item.path);
-      if (!img.isEmpty()) {
-        clipboard.writeImage(img);
-        this.showBanner(`Gambar "${item.name}" disalin!`);
+    if (process.platform === 'win32') {
+      const ok = await copyFileToWindowsClipboard(item.path);
+      if (ok) {
+        this.showBanner(`File "${item.name}" siap dipaste (Ctrl+V) di Windows! 📋`);
         return true;
       }
     }
 
-    if (process.platform === 'win32') {
-      await copyFileToWindowsClipboard(item.path);
-      this.showBanner(`File "${item.name}" disalin ke Clipboard!`);
-      return true;
+    if (item.kind === 'image') {
+      const img = nativeImage.createFromPath(item.path);
+      if (!img.isEmpty()) {
+        clipboard.writeImage(img);
+        this.showBanner(`Gambar "${item.name}" disalin ke clipboard! 📋`);
+        return true;
+      }
     }
 
     clipboard.writeText(item.path);
-    this.showBanner(`Path "${item.name}" disalin!`);
+    this.showBanner(`Path "${item.name}" disalin! 📋`);
     return true;
   }
 

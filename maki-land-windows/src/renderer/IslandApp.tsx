@@ -525,6 +525,28 @@ export const IslandApp: React.FC = () => {
                       {state.isMicMuted ? '🔇 Muted' : '🎙️'}
                     </button>
 
+                    {/* Quick Voice Recorder Shortcut */}
+                    <button
+                      onClick={() => void dispatchMaki('selectTab', { tab: 'Tray' })}
+                      title="Buka Tray & Rekam Suara"
+                      style={{
+                        padding: '3.5px 7.5px',
+                        borderRadius: 99,
+                        background: 'rgba(239,68,68,0.18)',
+                        color: '#f87171',
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2.5,
+                      }}
+                    >
+                      <span>🎙️</span>
+                      <span>Rekam</span>
+                    </button>
+
                     {/* Pin Button */}
                     <button
                       onClick={() => void dispatchMaki('togglePin')}

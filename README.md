@@ -1,6 +1,6 @@
 # ✨ maki-land
 
-[![Release](https://img.shields.io/badge/release-v1.0.1-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.0.4-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
 [![Platform macOS](https://img.shields.io/badge/platform-macOS%2013%2B-black.svg?logo=apple)](https://github.com/maki-lab2410/maki-land/releases)
 [![Platform Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(64--bit)-blue.svg?logo=windows)](https://github.com/maki-lab2410/maki-land/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -116,7 +116,7 @@ Aplikasi maki-land dilengkapi asisten cerdas **"Tanya Maki"** yang dapat diajak 
 | **🐾 Capy Habitat** | Habitat tempat tinggal Maki. Rawat tingkat *Mood* & *Kenyang*, suapi buah (jeruk, semangka, apel), tumpuk jeruk di kepala, ajak atraksi, atau klik tombol **💬 Tanya AI** untuk ngobrol. |
 | **📝 Notes & To-Do** | Kolom ganda: **Scratchpad** kilat (tekan `⌘↩` / `Ctrl+Enter` untuk kirim baris ke To-Do) dan daftar **To‑Do** rapi dengan pintasan centang tugas cepat (`⌥1` s/d `⌥9`). Mode `⤢ Penuh` tersedia untuk melihat catatan panjang. |
 | **🪟 Launch** | Dermaga pintasan cepat (*Quick Launcher*) untuk meluncurkan aplikasi favorit, folder, maupun website kerja hanya dengan satu klik. |
-| **📥 Tray & Studio** | Drop zone cerdas: seret file apa saja ke Maki/Tray untuk disimpan sementara. Dilengkapi **PDF Studio** (gabung, putar, pecah PDF) dan pengubah format gambar otomatis. |
+| **📥 Tray & Studio** | Drop zone cerdas & hub file: simpan sementara screenshot & file, rekam memo suara (**🎙️ Voice Recorder**), seret keluar (*drag-out*) ke Desktop/Explorer, atau salin file langsung (`Ctrl+V`). Dilengkapi **PDF Studio** (gabung, putar, pecah PDF), mini audio player, dan integrasi tanya AI. |
 | **📊 System & Clean** | Monitor penggunaan CPU, RAM, Baterai, dan pembersih sampah aman (**Maki Safe Cache Cleaner**) untuk membersihkan cache Xcode, Homebrew, Gradle, browser, dan temporary files. |
 | **📋 Clipboard** | Riwayat papan klip (*clipboard history*) otomatis yang mengingat teks dan gambar yang baru saja Anda salin. |
 | **⏱️ Timer** | Pengatur waktu fokus kerja/belajar (Pomodoro) dengan alarm visual saat waktu selesai. |

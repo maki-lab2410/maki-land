@@ -8,8 +8,11 @@ export const makiBridge = {
     return () => ipcRenderer.removeListener('maki:state', listener);
   },
   dispatch: (action: string, payload?: unknown) => ipcRenderer.invoke('maki:dispatch', action, payload),
+  prepareNativeDrag: () => ipcRenderer.send('maki:prepare-drag'),
   startNativeFileDrag: (filePath: string) => ipcRenderer.send('maki:start-drag', filePath),
   endNativeFileDrag: () => ipcRenderer.send('maki:end-drag'),
+  saveVoiceRecording: (base64Data: string, durationSec: number, mimeType?: string) =>
+    ipcRenderer.invoke('maki:save-voice-recording', { base64Data, durationSec, mimeType }),
   setCompactHover: (hovering: boolean) => ipcRenderer.send('maki:compact-hover', hovering),
   setDropHold: (holding: boolean) => ipcRenderer.send('maki:drop-hold', holding),
   desktopDragStart: (screenX: number, screenY: number) =>

@@ -266,7 +266,7 @@ export interface MakiChatMessage {
   modelUsed?: string;
 }
 
-export type DroppedItemKind = 'pdf' | 'image' | 'other';
+export type DroppedItemKind = 'pdf' | 'image' | 'audio' | 'other';
 
 export interface DroppedItem {
   id: string;
@@ -277,6 +277,7 @@ export interface DroppedItem {
   kind: DroppedItemKind;
   badgeText: string;
   thumbnailDataUrl?: string;
+  audioDataUrl?: string;
   pageCount?: number;
 }
 
