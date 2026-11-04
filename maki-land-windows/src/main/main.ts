@@ -627,35 +627,49 @@ class MakiMainController {
       this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 5000);
       this.studio.showBanner('Pembaruan selesai diunduh! Memasang & memulai ulang...', false, 5000);
 
-      // Gunakan update watchdog batch script agar instalasi silent ditunggu hingga selesai 100%,
-      // lalu maki-land.exe dipastikan otomatis autorun / menyala kembali secara bersih tanpa error DLL.
+      // Gunakan update watchdog VBScript (wscript.exe) yang 100% GUI subsystem
+      // sehingga TIDAK PERNAH memunculkan jendela hitam cmd prompt, tidak bisa macet di QuickEdit/Select mode,
+      // menunggu installer selesai secara silent dan otomatis menyalakan maki-land.exe baru.
       const targetExe = process.execPath;
-      const scriptPath = path.join(app.getPath('temp'), `makiland_update_launcher_${Date.now()}.bat`);
-      const batContent = `@echo off
-chcp 65001 >nul
-rem Tunggu sejenak agar proses maki-land lama keluar sepenuhnya
-timeout /t 2 /nobreak >nul
+      const scriptPath = path.join(app.getPath('temp'), `makiland_update_launcher_${Date.now()}.vbs`);
+      const vbsInstaller = tempInstaller.replace(/"/g, '""');
+      const vbsTarget = targetExe.replace(/"/g, '""');
 
-rem Jalankan installer NSIS secara senyap (silent) dan tunggu hingga 100% tuntas
-start /wait "" "${tempInstaller}" /S
+      const vbsContent = `' maki-land silent updater watchdog
+Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
 
-rem Tunggu sejenak agar seluruh file DLL dan registri Windows selesai ditulis
-timeout /t 2 /nobreak >nul
+' 1. Tunggu 2.5 detik agar proses lama maki-land keluar sepenuhnya
+WScript.Sleep 2500
 
-rem Periksa apakah maki-land sudah menyala; jika belum, autorun sekarang!
-tasklist /FI "IMAGENAME eq maki-land.exe" 2>nul | find /I /N "maki-land.exe">nul
-if errorlevel 1 (
-    start "" "${targetExe}"
-)
+' 2. Jalankan installer NSIS secara senyap (0 = SW_HIDE, True = tunggu hingga 100% selesai)
+installerPath = "${vbsInstaller}"
+WshShell.Run """" & installerPath & """ /S", 0, True
 
-rem Bersihkan file installer dan script sementara
-del "${tempInstaller}" >nul 2>&1
-(goto) 2>nul & del "%~f0"
+' 3. Tunggu sejenak agar penulisan file dan registri selesai
+WScript.Sleep 1500
+
+' 4. Cari dan jalankan maki-land.exe baru
+exePath = "${vbsTarget}"
+If Not fso.FileExists(exePath) Then
+    localApp = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%")
+    altPath = localApp & "\\Programs\\maki-land\\maki-land.exe"
+    If fso.FileExists(altPath) Then exePath = altPath
+End If
+
+If fso.FileExists(exePath) Then
+    WshShell.Run """" & exePath & """", 1, False
+End If
+
+' 5. Bersihkan file sementara
+On Error Resume Next
+fso.DeleteFile installerPath, True
+fso.DeleteFile WScript.ScriptFullName, True
 `;
 
-      fs.writeFileSync(scriptPath, batContent, 'utf-8');
+      fs.writeFileSync(scriptPath, vbsContent, 'utf-8');
 
-      const child = spawn('cmd.exe', ['/c', scriptPath], {
+      const child = spawn('wscript.exe', ['//B', scriptPath], {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
