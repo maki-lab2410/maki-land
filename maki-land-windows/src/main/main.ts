@@ -161,6 +161,7 @@ class MakiMainController {
   private companionRoamEnabled = true;
   private companionWalkTimer: ReturnType<typeof setInterval> | null = null;
   private companionWalkTarget: { x: number; y: number } | null = null;
+  private companionHomePhase: { kind: 'none' | 'doorstep' | 'climbing'; doorstepX: number; doorstepY: number; insideY: number; progress?: number } = { kind: 'none', doorstepX: 0, doorstepY: 0, insideY: 0 };
   private banterIndex = 0;
   private banterTimer: ReturnType<typeof setInterval> | null = null;
   private readonly banterPairs = [
@@ -1045,6 +1046,21 @@ fso.DeleteFile WScript.ScriptFullName, True
     this.companionAction = 'chill';
   }
 
+  public walkCompanionHomeToNotch() {
+    if (!this.companionWin || this.companionWin.isDestroyed()) return;
+    this.stopCompanionWalk();
+    this.stopBanterTimer();
+    const primary = screen.getPrimaryDisplay();
+    // Moko walks to doorstep alongside Maki (offset by +34px)
+    const doorstepX = Math.round(primary.bounds.x + (primary.bounds.width - DESKTOP_NORMAL_WIDTH) / 2) + 34;
+    const doorstepY = primary.bounds.y + 8;
+    const insideY = primary.bounds.y - 84;
+    this.companionHomePhase = { kind: 'doorstep', doorstepX, doorstepY, insideY };
+    this.companionAction = 'walking';
+    this.showCompanionBubble('Tungguin aku Maki, ikut masuk! 🏃', 2000);
+    this.scheduleBroadcast();
+  }
+
   // Banter
   private startBanterTimer() {
     this.stopBanterTimer();
@@ -1226,6 +1242,41 @@ fso.DeleteFile WScript.ScriptFullName, True
     const maxX = wa.x + wa.width - b.width - 4;
     const minY = wa.y + 4;
     const maxY = wa.y + wa.height - b.height - 4;
+
+    // 1b. Companion Moko 2-Phase Walk Home into Top-Center Notch alongside Maki
+    if (this.companionWin && !this.companionWin.isDestroyed() && this.companionHomePhase.kind !== 'none') {
+      const cb = this.companionWin.getBounds();
+      if (this.companionHomePhase.kind === 'doorstep') {
+        const cdx = this.companionHomePhase.doorstepX - cb.x;
+        const cdy = this.companionHomePhase.doorstepY - cb.y;
+        const cdist = Math.hypot(cdx, cdy);
+        if (cdist < 8) {
+          this.companionWin.setPosition(Math.round(this.companionHomePhase.doorstepX), Math.round(this.companionHomePhase.doorstepY));
+          this.companionHomePhase = {
+            kind: 'climbing',
+            doorstepX: this.companionHomePhase.doorstepX,
+            doorstepY: this.companionHomePhase.doorstepY,
+            insideY: this.companionHomePhase.insideY,
+            progress: 0,
+          };
+        } else {
+          const cstep = Math.min(cdist, 400 * dtSec);
+          const cnx = cb.x + (cdx / cdist) * cstep;
+          const cny = cb.y + (cdy / cdist) * cstep;
+          this.companionFacingRight = cdx >= 0;
+          this.companionWin.setPosition(Math.round(cnx), Math.round(cny));
+        }
+      } else if (this.companionHomePhase.kind === 'climbing') {
+        const nextCProg = Math.min(1, (this.companionHomePhase.progress || 0) + dtSec * 2.5);
+        this.companionHomePhase.progress = nextCProg;
+        const curCY = this.companionHomePhase.doorstepY + (this.companionHomePhase.insideY - this.companionHomePhase.doorstepY) * nextCProg;
+        this.companionWin.setPosition(Math.round(this.companionHomePhase.doorstepX), Math.round(curCY));
+        if (nextCProg >= 1) {
+          this.companionHomePhase = { kind: 'none', doorstepX: 0, doorstepY: 0, insideY: 0 };
+          this.destroyCompanionWindow();
+        }
+      }
+    }
 
     // 1. 2-Phase Walk Home into Top-Center Notch
     if (this.homePhase.kind === 'doorstep') {
@@ -1741,6 +1792,9 @@ fso.DeleteFile WScript.ScriptFullName, True
     }
     if (this.isOnsenMode) this.isOnsenMode = false;
 
+    // Simultaneously guide companion Moko home into the notch together with Maki!
+    this.walkCompanionHomeToNotch();
+
     if (this.desktopWin && !this.desktopWin.isDestroyed() && this.desktopWin.isVisible()) {
       const primary = screen.getPrimaryDisplay();
       const doorstepX = Math.round(primary.bounds.x + (primary.bounds.width - DESKTOP_NORMAL_WIDTH) / 2);
@@ -1758,6 +1812,8 @@ fso.DeleteFile WScript.ScriptFullName, True
 
   private completeReturnToNotchArrival() {
     this.homePhase = { kind: 'none' };
+    this.companionHomePhase = { kind: 'none', doorstepX: 0, doorstepY: 0, insideY: 0 };
+    this.destroyCompanionWindow();
     this.isReturningToNotch = false;
     this.notchClimbProgress = 0;
     this.isDraggingOnDesktop = false;
@@ -2957,6 +3013,15 @@ fso.DeleteFile WScript.ScriptFullName, True
 
     ipcMain.on('maki:companion-drag-end', (_ev, { screenX, screenY }: { screenX: number; screenY: number }) => {
       if (!this.companionWin || this.companionWin.isDestroyed()) return;
+      const primary = screen.getPrimaryDisplay();
+      if (
+        screenY <= primary.bounds.y + 62 &&
+        Math.abs(screenX - (primary.bounds.x + primary.bounds.width / 2)) < 200
+      ) {
+        this.showCompanionBubble('moko masuk notch dulu ya~', 2000);
+        this.returnToNotch();
+        return;
+      }
       const cursor = { x: screenX, y: screenY };
       const targetDisplay = screen.getDisplayNearestPoint(cursor);
       const b = this.companionWin.getBounds();
@@ -2988,6 +3053,8 @@ fso.DeleteFile WScript.ScriptFullName, True
         { label: '🍊 Lempar Jeruk ke Maki', click: () => { void this.handleAction('companionOrangeToss', {}); } },
         { label: '♨️ ' + (this.companionIsOnsen ? 'Selesai Berendam' : 'Berendam Onsen'), click: () => { void this.handleAction('companionToggleOnsen', {}); } },
         { label: '🐾 Tos / High-Five dengan Maki', click: () => { void this.handleAction('companionHighFive', {}); } },
+        { type: 'separator' },
+        { label: '🏠 Pulang ke Notch bersama Maki', click: () => { this.returnToNotch(); } },
       ]);
       menu.popup();
     });

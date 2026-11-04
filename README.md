@@ -1,6 +1,6 @@
 # ✨ maki-land
 
-[![Release](https://img.shields.io/badge/release-v1.0.13-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.0.14-orange.svg)](https://github.com/maki-lab2410/maki-land/releases/latest)
 [![Platform macOS](https://img.shields.io/badge/platform-macOS%2013%2B-black.svg?logo=apple)](https://github.com/maki-lab2410/maki-land/releases)
 [![Platform Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(64--bit)-blue.svg?logo=windows)](https://github.com/maki-lab2410/maki-land/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -55,7 +55,7 @@ chmod +x build_app.sh
 Tersedia dua pilihan paket aplikasi:
 
 #### Pilihan A: Installer Otomatis (`.exe`) — Sangat Direkomendasikan
-1. Unduh file **`maki-land.Setup.1.0.13.exe`** dari [**GitHub Releases**](https://github.com/maki-lab2410/maki-land/releases/latest).
+1. Unduh file **`maki-land.Setup.1.0.14.exe`** dari [**GitHub Releases**](https://github.com/maki-lab2410/maki-land/releases/latest).
 2. Klik dua kali file installer tersebut.
 3. Ikuti langkah wizard instalasi (installer akan otomatis memasang semua komponen, DLL sistem, serta membuat pintasan resmi di Desktop dan Start Menu).
 4. Aplikasi maki-land akan otomatis berjalan di layar atas Anda.
@@ -68,7 +68,7 @@ Tersedia dua pilihan paket aplikasi:
 #### Mengatasi Pesan Error *"The code execution cannot proceed because ffmpeg.dll was not found"*:
 Pesan ini muncul di Windows jika file `maki-land.exe` dipindahkan atau dijalankan terpisah dari file pendukungnya:
 1. **Penyebab 1: Meng-copy hanya file `maki-land.exe` sendirian ke Desktop**:
-   - *Solusi*: Jangan meng-copy filenya langsung. Buatlah **Shortcut**. Klik kanan pada file `maki-land.exe` > pilih **Send to** > **Desktop (create shortcut)**. Atau cukup gunakan installer resmi **`maki-land.Setup.1.0.13.exe`** yang otomatis membuat pintasan yang benar.
+   - *Solusi*: Jangan meng-copy filenya langsung. Buatlah **Shortcut**. Klik kanan pada file `maki-land.exe` > pilih **Send to** > **Desktop (create shortcut)**. Atau cukup gunakan installer resmi **`maki-land.Setup.1.0.14.exe`** yang otomatis membuat pintasan yang benar.
 2. **Penyebab 2: Membuka file dari dalam file `.zip` tanpa di-ekstrak**:
    - *Solusi*: Klik kanan file `.zip` yang diunduh > pilih **Extract All...** (Ekstrak Semua) ke suatu folder terlebih dahulu sebelum menjalankan aplikasi.
 

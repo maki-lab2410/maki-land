@@ -296,6 +296,12 @@ export const DesktopApp: React.FC = () => {
                 title: 'Tos / High-Five dengan Maki!',
                 fn: () => void dispatchMaki('companionHighFive'),
               },
+              {
+                icon: '🏠',
+                active: false,
+                title: 'Jalan Pulang ke Notch bersama Maki',
+                fn: () => void dispatchMaki('returnToNotch'),
+              },
             ].map((btn, i) => (
               <button
                 key={i}

@@ -829,6 +829,9 @@ public class CapybaraService: ObservableObject {
         actionResetWork?.cancel()
         if isOnsenMode { isOnsenMode = false }
 
+        // Guide companion Moko home into the notch together with Maki!
+        CompanionCapyController.shared.walkHomeToNotch()
+
         if let panel = DesktopCapyController.shared.panel, panel.isVisible {
             isReturningToNotch = true
             currentAction = .walking
@@ -850,6 +853,7 @@ public class CapybaraService: ObservableObject {
             showInCompactNotch = true
         }
         DesktopCapyController.shared.hide()
+        CompanionCapyController.shared.dismissImmediately()
         withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
             isOnDesktop = false
             IslandState.shared.notifySize()

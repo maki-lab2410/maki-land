@@ -87,6 +87,16 @@ public class CompanionCapyPanel: NSPanel {
                 CompanionCapyController.shared.isDangling = false
                 let cur = NSEvent.mouseLocation
 
+                // Check notch return on the screen that actually has the Notch!
+                let notchScreen = IslandController.shared.panel?.screen ?? NSScreen.screens.first!
+                if notchScreen.frame.contains(cur),
+                   cur.y >= notchScreen.frame.maxY - 58,
+                   abs(cur.x - notchScreen.frame.midX) < 200 {
+                    CompanionCapyController.shared.showBubble("moko masuk notch dulu ya~", duration: 2.0)
+                    CapybaraService.shared.returnToNotch()
+                    return
+                }
+
                 let dropScreen = NSScreen.screens.first(where: { $0.frame.contains(cur) })
                     ?? NSScreen.screens.first(where: { $0.frame.intersects(frame) })
                     ?? screen ?? NSScreen.main ?? NSScreen.screens.first!
@@ -183,6 +193,9 @@ struct CompanionCapyRootView: View {
                 }
                 companionDockBtn("🐾", help: "Tos dengan Maki!") {
                     companion.triggerHighFive()
+                }
+                companionDockBtn("🏠", help: "Jalan Pulang ke Notch bersama Maki") {
+                    CapybaraService.shared.returnToNotch()
                 }
             }
             .padding(.horizontal, 8)
@@ -491,6 +504,11 @@ public class CompanionCapyController: NSObject, ObservableObject {
         itemHighFive.target = self
         menu.addItem(itemHighFive)
 
+        menu.addItem(NSMenuItem.separator())
+        let itemReturn = NSMenuItem(title: "🏠 Pulang ke Notch bersama Maki", action: #selector(menuReturnHome), keyEquivalent: "")
+        itemReturn.target = self
+        menu.addItem(itemReturn)
+
         NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
 
@@ -498,4 +516,87 @@ public class CompanionCapyController: NSObject, ObservableObject {
     @objc private func menuOrange() { tossOrangeToMaki() }
     @objc private func menuOnsen() { toggleOnsen() }
     @objc private func menuHighFive() { triggerHighFive() }
+    @objc private func menuReturnHome() { CapybaraService.shared.returnToNotch() }
+
+    public func walkHomeToNotch() {
+        guard let p = panel, p.isVisible else { return }
+        stopBanterTimer()
+        stopCurrentWalk()
+        strollTimer?.invalidate()
+        strollTimer = nil
+
+        let sc = IslandController.shared.panel?.screen ?? NSScreen.screens.first!
+        let doorstepX = round(sc.frame.midX - panelSize.width * 0.5) + 32
+        let notchHeight: CGFloat = IslandState.shared.isExpanded ? IslandState.shared.expandedTargetSize.height : 32
+        let notchBottomY = sc.frame.maxY - notchHeight
+        let doorstepY = notchBottomY - 118
+        let insideNotchY = sc.frame.maxY - 68
+
+        let cur = p.frame.origin
+        showBubble("Tungguin aku Maki, ikut masuk! 🏃", duration: 2.2)
+        action = .walking
+        facingRight = (doorstepX >= cur.x)
+
+        let totalDist = hypot(doorstepX - cur.x, doorstepY - cur.y)
+        let speed = max(320.0, min(700.0, totalDist / 1.15))
+        var logicalOrigin = cur
+
+        motionTimer?.invalidate()
+        let dt: CGFloat = 1.0 / 60.0
+        motionTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(dt), repeats: true) { [weak self] t in
+            guard let self = self, let cp = self.panel else {
+                t.invalidate()
+                return
+            }
+            let dx = doorstepX - logicalOrigin.x
+            let dy = doorstepY - logicalOrigin.y
+            let dist = hypot(dx, dy)
+
+            if dist < 6.0 {
+                t.invalidate()
+                cp.setFrameOrigin(CGPoint(x: doorstepX, y: doorstepY))
+                self.action = .walking
+
+                var climbProg: CGFloat = 0
+                self.motionTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(dt), repeats: true) { [weak self] ct in
+                    guard let self = self, let panelToHide = self.panel else {
+                        ct.invalidate()
+                        return
+                    }
+                    climbProg += dt / 0.36
+                    let ease = climbProg * climbProg * (3.0 - 2.0 * climbProg)
+                    let curY = doorstepY + (insideNotchY - doorstepY) * ease
+                    panelToHide.setFrameOrigin(CGPoint(x: doorstepX, y: curY))
+                    panelToHide.alphaValue = max(0.0, 1.0 - max(0, (climbProg - 0.58) / 0.42))
+
+                    if climbProg >= 1.0 {
+                        ct.invalidate()
+                        self.motionTimer = nil
+                        panelToHide.orderOut(nil)
+                        self.panel = nil
+                        self.action = .chill
+                    }
+                }
+                return
+            }
+
+            let step = min(dist, speed * dt)
+            logicalOrigin.x += (dx / dist) * step
+            logicalOrigin.y += (dy / dist) * step
+            self.facingRight = dx >= 0
+            cp.setFrameOrigin(logicalOrigin)
+        }
+    }
+
+    public func dismissImmediately() {
+        stopBanterTimer()
+        stopCurrentWalk()
+        strollTimer?.invalidate()
+        strollTimer = nil
+        motionTimer?.invalidate()
+        motionTimer = nil
+        panel?.orderOut(nil)
+        panel = nil
+        action = .chill
+    }
 }
