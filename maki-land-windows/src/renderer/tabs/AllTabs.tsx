@@ -1975,49 +1975,84 @@ export const TrayTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
             background: dropActive ? 'rgba(59,130,246,0.16)' : 'rgba(255,255,255,0.04)',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            padding: '0 14px',
+            gap: 8,
+            padding: '0 10px',
+            height: 52,
+            minHeight: 52,
           }}
         >
-          <span style={{ fontSize: 22 }}>📥</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700 }}>
-              Kasih Screenshot (Win+Shift+S), Suara, atau File ke Maki / Tray
-            </div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.52)' }}>
-              Tarik file dari Explorer ke Maki biar masuk Tray & siap ditarik keluar atau dipaste kapan saja
-            </div>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>📥</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'rgba(255,255,255,0.9)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flex: 1,
+            }}
+          >
+            {dropActive ? 'Lepas file sekarang!' : 'Tarik file / screenshot ke sini'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('grabScreenshot')}
+              style={{
+                background: 'rgba(251,146,60,0.26)',
+                color: '#fb923c',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: 9.5,
+              }}
+              title="Ambil screenshot dari Clipboard ke Tray"
+            >
+              📸 Screenshot
+            </button>
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('pickTrayFiles')}
+              style={{
+                background: 'rgba(59,130,246,0.30)',
+                color: '#22d3ee',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: 9.5,
+              }}
+              title="Pilih file dari Explorer"
+            >
+              + File
+            </button>
+            <button
+              className="pill-btn"
+              onClick={() => setIsRecordingVoice(true)}
+              style={{
+                background: 'rgba(239,68,68,0.25)',
+                color: '#f87171',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: 9.5,
+              }}
+              title="Rekam suara langsung ke Tray"
+            >
+              🎙️ Rekam
+            </button>
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('toggleMirror')}
+              style={{
+                background: 'rgba(168,85,247,0.22)',
+                color: '#c084fc',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: 9.5,
+              }}
+              title="Buka cermin kamera (webcam mirror)"
+            >
+              🪞 Cermin
+            </button>
           </div>
-          <button
-            className="pill-btn"
-            onClick={() => void dispatchMaki('toggleMirror')}
-            style={{ background: 'rgba(168,85,247,0.22)', color: '#c084fc' }}
-            title="Buka cermin kamera (webcam mirror)"
-          >
-            🪞 Cermin / Mirror
-          </button>
-          <button
-            className="pill-btn"
-            onClick={() => setIsRecordingVoice(true)}
-            style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171' }}
-            title="Rekam suara langsung ke Tray & Windows Documents"
-          >
-            🎙️ Rekam Suara
-          </button>
-          <button
-            className="pill-btn"
-            onClick={() => void dispatchMaki('grabScreenshot')}
-            style={{ background: 'rgba(251,146,60,0.26)', color: '#fb923c' }}
-          >
-            📸 Screenshot
-          </button>
-          <button
-            className="pill-btn"
-            onClick={() => void dispatchMaki('pickTrayFiles')}
-            style={{ background: 'rgba(59,130,246,0.30)', color: '#22d3ee' }}
-          >
-            + Pilih File
-          </button>
         </div>
       ) : (
         <>
@@ -2545,89 +2580,168 @@ export const ClipboardTab: React.FC<{ state: SharedAppState }> = ({ state }) => 
   );
 };
 
-// 8. ⏳ Focus Timer Tab
+// 8. ⏳ Focus Timer Tab (Interactive Dial + Presets + Stepper)
 export const TimerTab: React.FC<{ state: SharedAppState }> = ({ state }) => {
-  const [customMin, setCustomMin] = useState('25');
+  const [selectedMin, setSelectedMin] = useState(25);
   const tm = state.timer;
 
+  const adjustMinutes = (delta: number) => {
+    setSelectedMin((prev) => Math.max(1, Math.min(180, prev + delta)));
+  };
+
+  const isRunning = tm.totalSeconds > 0 && tm.isRunning;
+  const isPaused = tm.totalSeconds > 0 && !tm.isRunning && !tm.isTimeUpAlert;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', height: '100%' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', height: '100%', padding: '0 4px' }}>
+      {/* Interactive Dial on Left */}
       <div
         style={{
-          width: 82,
-          height: 82,
+          width: 66,
+          height: 66,
           borderRadius: 99,
-          border: `4px solid ${tm.isTimeUpAlert ? '#ef4444' : 'rgba(251,146,60,0.35)'}`,
+          border: `3.5px solid ${tm.isTimeUpAlert ? '#ef4444' : isRunning ? '#fb923c' : 'rgba(251,146,60,0.35)'}`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
           background: 'rgba(255,255,255,0.04)',
+          boxShadow: isRunning ? '0 0 14px rgba(251,146,60,0.3)' : 'none',
+          transition: 'all 0.3s ease',
         }}
       >
-        <div style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-          {tm.totalSeconds > 0 ? tm.formattedTime : '00:00'}
+        <div style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+          {tm.totalSeconds > 0 ? tm.formattedTime : `${selectedMin}m`}
         </div>
-        <div style={{ fontSize: 8, color: '#fb923c' }}>
-          {tm.isTimeUpAlert ? 'SELESAI!' : tm.isRunning ? 'FOKUS' : 'SIAP'}
+        <div style={{ fontSize: 7.5, fontWeight: 700, color: tm.isTimeUpAlert ? '#ef4444' : '#fb923c' }}>
+          {tm.isTimeUpAlert ? 'SELESAI!' : isRunning ? 'FOKUS' : isPaused ? 'JEDA' : selectedMin === 25 ? 'POMODORO' : 'TARGET'}
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {[5, 15, 25, 45].map((m) => (
+      {/* Center & Right Controls */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {tm.isTimeUpAlert ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c' }}>
+              🎉 Waktu Habis! Selamat sudah fokus.
+            </span>
             <button
-              key={m}
               className="pill-btn"
-              onClick={() => void dispatchMaki('startTimer', { seconds: m * 60 })}
+              onClick={() => void dispatchMaki('resetTimer')}
+              style={{ background: '#fb923c', color: '#000', fontWeight: 800, padding: '4px 12px' }}
             >
-              ⏱️ {m} Menit
+              ✓ Selesai
             </button>
-          ))}
-        </div>
+          </div>
+        ) : tm.totalSeconds > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('toggleTimerPause')}
+              style={{
+                background: tm.isRunning ? 'rgba(255,255,255,0.12)' : 'rgba(251,146,60,0.3)',
+                color: tm.isRunning ? '#fff' : '#fb923c',
+                fontWeight: 700,
+                padding: '6px 14px',
+              }}
+            >
+              {tm.isRunning ? '⏸ Jeda' : '▶ Lanjut'}
+            </button>
+            <button
+              className="pill-btn"
+              onClick={() => void dispatchMaki('resetTimer')}
+              style={{ color: '#f87171', background: 'rgba(239,68,68,0.16)', padding: '6px 12px' }}
+            >
+              ✕ Reset
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Quick Presets Row */}
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {[5, 15, 25, 45, 60].map((m) => {
+                const isSelected = selectedMin === m;
+                const isPomodoro = m === 25;
+                return (
+                  <button
+                    key={m}
+                    className="pill-btn"
+                    onClick={() => setSelectedMin(m)}
+                    style={{
+                      background: isSelected
+                        ? 'rgba(251,146,60,0.35)'
+                        : isPomodoro
+                        ? 'rgba(251,146,60,0.18)'
+                        : 'rgba(255,255,255,0.08)',
+                      color: isSelected ? '#fb923c' : isPomodoro ? '#fdba74' : 'rgba(255,255,255,0.85)',
+                      border: isSelected ? '1px solid rgba(251,146,60,0.8)' : '1px solid transparent',
+                      fontWeight: isSelected ? 800 : 600,
+                      padding: '3.5px 7px',
+                      fontSize: 9.5,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {isPomodoro ? '🔥 25m Pomodoro' : `${m}m`}
+                  </button>
+                );
+              })}
+            </div>
 
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input
-            value={customMin}
-            onChange={(e) => setCustomMin(e.target.value)}
-            style={{
-              width: 52,
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.14)',
-              borderRadius: 7,
-              padding: '4px 7px',
-              color: '#fff',
-              fontSize: 9.5,
-            }}
-          />
-          <button
-            className="pill-btn"
-            onClick={() =>
-              void dispatchMaki('startTimer', {
-                seconds: Math.max(1, Number(customMin) || 25) * 60,
-              })
-            }
-            style={{ background: 'rgba(251,146,60,0.28)', color: '#fb923c' }}
-          >
-            Mulai Kustom (menit)
-          </button>
+            {/* Steppers & Primary Start Button Row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 3,
+                  alignItems: 'center',
+                  background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 99,
+                  padding: '2px 4px',
+                }}
+              >
+                {[-5, -1, 1, 5].map((d) => (
+                  <button
+                    key={d}
+                    className="pill-btn"
+                    onClick={() => adjustMinutes(d)}
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '2px 5px',
+                      background: 'rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {d > 0 ? `+${d}m` : `${d}m`}
+                  </button>
+                ))}
+              </div>
 
-          {tm.totalSeconds > 0 && (
-            <>
-              <button className="pill-btn" onClick={() => void dispatchMaki('toggleTimerPause')}>
-                {tm.isRunning ? '⏸ Jeda' : '▶ Lanjut'}
-              </button>
+              <div style={{ flex: 1 }} />
+
               <button
                 className="pill-btn"
-                onClick={() => void dispatchMaki('resetTimer')}
-                style={{ color: '#f87171' }}
+                onClick={() =>
+                  void dispatchMaki('startTimer', {
+                    seconds: selectedMin * 60,
+                  })
+                }
+                style={{
+                  background: 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)',
+                  color: '#000',
+                  fontWeight: 800,
+                  fontSize: 10.5,
+                  padding: '5px 14px',
+                  borderRadius: 99,
+                  boxShadow: '0 2px 8px rgba(251,146,60,0.3)',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                Reset
+                ▶ Mulai ({selectedMin}m)
               </button>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 {
   "name": "maki-land-windows",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "maki-land — Interactive Dynamic Island & Floating Desktop Capybara Companion for Windows 10 & Windows 11",
   "productName": "maki-land",
   "author": "maki-land",
@@ -82,7 +82,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "maki-land",
       "runAfterFinish": true,
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh"
     },
     "portable": {

@@ -36,75 +36,33 @@ public struct DropZoneView: View {
                                 .fill(isTargeted ? Color.blue.opacity(0.16) : Color.white.opacity(0.04))
                         )
 
-                    HStack(spacing: 12) {
-                        Image(systemName: isTargeted ? "arrow.down.doc.fill" : "photo.on.rectangle.angled")
-                            .font(.system(size: 21))
-                            .foregroundColor(isTargeted ? .cyan : .white.opacity(0.65))
+                    HStack(spacing: 8) {
+                        Image(systemName: isTargeted ? "arrow.down.doc.fill" : "tray.and.arrow.down.fill")
+                            .font(.system(size: 17))
+                            .foregroundColor(isTargeted ? .cyan : .white.opacity(0.7))
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Kasih Screenshot atau File ke Maki / Tray")
-                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.9))
+                        Text(isTargeted ? "Lepas file sekarang!" : "Tarik file / screenshot ke sini")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
 
-                            Text("Tarik hasil screenshot langsung ke Maki biar masuk Tray & siap diambil kapan aja")
-                                .font(.system(size: 9.2, design: .rounded))
-                                .foregroundColor(.white.opacity(0.52))
-                                .lineLimit(1)
-                        }
+                        Spacer(minLength: 4)
 
-                        Spacer()
-
-                        Button {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                IslandState.shared.isShowingCameraMirror = true
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text("🪞")
-                                    .font(.system(size: 10))
-                                Text("Cermin / Mirror")
-                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                            }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
-                            .background(Color.purple.opacity(0.28))
-                            .foregroundColor(Color.purple.opacity(0.95))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Buka cermin kamera / webcam langsung di layar")
-
-                        Button {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                IslandState.shared.isShowingVoiceRecorder = true
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text("🎙️")
-                                    .font(.system(size: 10))
-                                Text("Rekam Suara")
-                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                            }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.28))
-                            .foregroundColor(Color.red.opacity(0.95))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Rekam memo suara langsung ke Tray")
-
+                        // 1-Baris Quick Action Buttons
                         Button {
                             CapybaraService.shared.catchClipboardOrRecentScreenshot()
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "camera.viewfinder")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 9.5))
                                 Text("Screenshot")
                                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                             }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4.5)
                             .background(Color.orange.opacity(0.26))
                             .foregroundColor(.orange)
                             .clipShape(Capsule())
@@ -115,23 +73,70 @@ public struct DropZoneView: View {
                         Button {
                             dropService.pickFilesFromFinder()
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 10))
-                                Text("Pilih File")
+                                    .font(.system(size: 9.5))
+                                Text("File")
                                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                             }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4.5)
                             .background(Color.blue.opacity(0.32))
                             .foregroundColor(.cyan)
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
+                        .help("Pilih file dari Finder")
+
+                        Button {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                IslandState.shared.isShowingVoiceRecorder = true
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text("🎙️")
+                                    .font(.system(size: 9.5))
+                                Text("Rekam")
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                            }
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4.5)
+                            .background(Color.red.opacity(0.28))
+                            .foregroundColor(Color.red.opacity(0.95))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Rekam memo suara langsung ke Tray")
+
+                        Button {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                IslandState.shared.isShowingCameraMirror = true
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text("🪞")
+                                    .font(.system(size: 9.5))
+                                Text("Cermin")
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                            }
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4.5)
+                            .background(Color.purple.opacity(0.28))
+                            .foregroundColor(Color.purple.opacity(0.95))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Buka cermin kamera / webcam langsung di layar")
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 10)
                 }
-                .frame(height: 76)
+                .frame(height: 52)
             } else {
                 // Shelf with items (supports dragging files/screenshots OUT immediately + 1-click Copy + Studio!)
                 ScrollView(.horizontal, showsIndicators: false) {

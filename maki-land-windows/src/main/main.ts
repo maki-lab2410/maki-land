@@ -77,6 +77,7 @@ interface PersistedData {
   launcherItems: LauncherItem[];
   localCalendarEvents: CalendarEventItem[];
   googleICSUrl: string;
+  clipboardHistory?: ClipboardEntry[];
 }
 
 const PET_QUOTES = [
@@ -327,6 +328,9 @@ class MakiMainController {
         }
         if (Array.isArray(d.localCalendarEvents)) this.localCalendarEvents = d.localCalendarEvents;
         if (typeof d.googleICSUrl === 'string') this.googleICSUrl = d.googleICSUrl;
+        if (Array.isArray(d.clipboardHistory) && d.clipboardHistory.length > 0) {
+          this.clipboardHistory = d.clipboardHistory;
+        }
         if (typeof (d as any).hasCompletedOnboarding === 'boolean') {
           this.hasCompletedOnboarding = (d as any).hasCompletedOnboarding;
         }
@@ -355,6 +359,7 @@ class MakiMainController {
         launcherItems: this.launcherItems,
         localCalendarEvents: this.localCalendarEvents,
         googleICSUrl: this.googleICSUrl,
+        clipboardHistory: this.clipboardHistory.slice(0, 50),
       };
       (payload as any).hasCompletedOnboarding = this.hasCompletedOnboarding;
       fs.writeFileSync(this.stateFilePath, JSON.stringify(payload, null, 2));
@@ -2562,6 +2567,7 @@ fso.DeleteFile WScript.ScriptFullName, True
           },
           ...this.clipboardHistory.filter((c) => c.text !== txt),
         ].slice(0, 35);
+        this.savePersisted();
         this.scheduleBroadcast();
         return;
       }
@@ -2584,6 +2590,7 @@ fso.DeleteFile WScript.ScriptFullName, True
               },
               ...this.clipboardHistory,
             ].slice(0, 35);
+            this.savePersisted();
             this.scheduleBroadcast();
           }
         }
@@ -3410,6 +3417,7 @@ fso.DeleteFile WScript.ScriptFullName, True
       }
       case 'clearClipboardHistory':
         this.clipboardHistory = [];
+        this.savePersisted();
         break;
 
       // Focus Timer
