@@ -156,7 +156,8 @@ public struct TimerView: View {
     
     // MARK: - Idle Setup View (Interactive Dial + Presets + Stepper)
     private var idleSetupView: some View {
-        HStack(spacing: 12) {
+        let dialProgress: CGFloat = CGFloat(min(1.0, Double(timerService.customMinutes) / 60.0))
+        return HStack(spacing: 12) {
             // Left: Interactive circular target duration dial
             ZStack {
                 Circle()
@@ -164,7 +165,7 @@ public struct TimerView: View {
                     .frame(width: 58, height: 58)
                 
                 Circle()
-                    .trim(from: 0.0, to: CGFloat(min(1.0, Double(timerService.customMinutes) / 60.0)))
+                    .trim(from: 0.0, to: dialProgress)
                     .stroke(
                         Color.orange,
                         style: StrokeStyle(lineWidth: 4, lineCap: .round)
@@ -242,7 +243,22 @@ public struct TimerView: View {
     }
     
     private func presetButton(title: String, minutes: Int, isFocus: Bool = false) -> some View {
-        let isSelected = timerService.customMinutes == minutes
+        let isSelected: Bool = (timerService.customMinutes == minutes)
+        
+        let bgColor: Color = isSelected 
+            ? Color.orange.opacity(0.32) 
+            : (isFocus ? Color.orange.opacity(0.16) : Color.white.opacity(0.10))
+            
+        let fgColor: Color = isSelected 
+            ? Color.orange 
+            : (isFocus ? Color.orange.opacity(0.9) : Color.white.opacity(0.85))
+            
+        let borderColor: Color = isSelected 
+            ? Color.orange.opacity(0.8) 
+            : Color.clear
+
+        let fontWeight: Font.Weight = isSelected ? .bold : .semibold
+
         return Button {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 timerService.customMinutes = minutes
@@ -254,19 +270,16 @@ public struct TimerView: View {
                         .font(.system(size: 8.5))
                 }
                 Text(title)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: fontWeight, design: .rounded))
             }
             .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
-            .background(
-                isSelected ? Color.orange.opacity(0.32) :
-                (isFocus ? Color.orange.opacity(0.16) : Color.white.opacity(0.10))
-            )
-            .foregroundColor(isSelected ? .orange : (isFocus ? Color.orange.opacity(0.9) : .white.opacity(0.85)))
+            .background(bgColor)
+            .foregroundColor(fgColor)
             .overlay(
                 Capsule()
-                    .strokeBorder(isSelected ? Color.orange.opacity(0.8) : Color.clear, lineWidth: 1)
+                    .strokeBorder(borderColor, lineWidth: 1)
             )
             .clipShape(Capsule())
         }
