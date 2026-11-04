@@ -75,7 +75,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "maki-land",
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": true,
+      "include": "build/installer.nsh"
     },
     "portable": {
       "artifactName": "maki-land-Windows-Portable.exe"
