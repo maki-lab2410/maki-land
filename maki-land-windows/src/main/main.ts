@@ -626,13 +626,44 @@ class MakiMainController {
       this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 5000);
       this.studio.showBanner('Pembaruan selesai diunduh! Memasang & memulai ulang...', false, 5000);
 
-      // Execute installer with /S (silent) and --force-run so NSIS safely waits for file extraction and relaunches via user shell
-      const child = spawn(tempInstaller, ['/S', '--force-run'], { detached: true, stdio: 'ignore' });
+      // Gunakan update watchdog batch script agar instalasi silent ditunggu hingga selesai 100%,
+      // lalu maki-land.exe dipastikan otomatis autorun / menyala kembali secara bersih tanpa error DLL.
+      const targetExe = process.execPath;
+      const scriptPath = path.join(app.getPath('temp'), `makiland_update_launcher_${Date.now()}.bat`);
+      const batContent = `@echo off
+chcp 65001 >nul
+rem Tunggu sejenak agar proses maki-land lama keluar sepenuhnya
+timeout /t 2 /nobreak >nul
+
+rem Jalankan installer NSIS secara senyap (silent) dan tunggu hingga 100% tuntas
+start /wait "" "${tempInstaller}" /S
+
+rem Tunggu sejenak agar seluruh file DLL dan registri Windows selesai ditulis
+timeout /t 2 /nobreak >nul
+
+rem Periksa apakah maki-land sudah menyala; jika belum, autorun sekarang!
+tasklist /FI "IMAGENAME eq maki-land.exe" 2>nul | find /I /N "maki-land.exe">nul
+if errorlevel 1 (
+    start "" "${targetExe}"
+)
+
+rem Bersihkan file installer dan script sementara
+del "${tempInstaller}" >nul 2>&1
+(goto) 2>nul & del "%~f0"
+`;
+
+      fs.writeFileSync(scriptPath, batContent, 'utf-8');
+
+      const child = spawn('cmd.exe', ['/c', scriptPath], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
       child.unref();
 
       setTimeout(() => {
         app.quit();
-      }, 1000);
+      }, 800);
     } catch (e: any) {
       if (this.updateAvailable) {
         this.updateAvailable.isDownloading = false;
