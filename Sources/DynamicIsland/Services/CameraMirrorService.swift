@@ -2,8 +2,9 @@ import Foundation
 import AVFoundation
 import AppKit
 import SwiftUI
+import CoreImage
 
-public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
+public class CameraMirrorService: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     public static let shared = CameraMirrorService()
 
     @Published public var isRunning: Bool = false
@@ -15,8 +16,16 @@ public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCapt
     @Published public var savedBanner: String? = nil
 
     public let session = AVCaptureSession()
-    private let photoOutput = AVCapturePhotoOutput()
+    public private(set) lazy var previewLayer: AVCaptureVideoPreviewLayer = {
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        return layer
+    }()
+
     private let sessionQueue = DispatchQueue(label: "com.makiland.camera.session")
+    private let videoOutputQueue = DispatchQueue(label: "com.makiland.camera.videoOutput")
+    private let ciContext = CIContext()
+    private var latestPixelBuffer: CVPixelBuffer?
     private var isConfigured = false
 
     public override init() {
@@ -69,11 +78,20 @@ public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCapt
             if !self.isConfigured {
                 self.configureSession()
             }
+            guard self.session.inputs.count > 0 else {
+                DispatchQueue.main.async {
+                    self.hasPermission = false
+                    self.isPermissionDenied = true
+                    self.isRunning = false
+                }
+                return
+            }
             if !self.session.isRunning {
                 self.session.startRunning()
             }
             DispatchQueue.main.async {
                 self.isRunning = self.session.isRunning
+                self.updateMirror(self.isMirrored)
             }
         }
     }
@@ -91,33 +109,53 @@ public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCapt
     }
 
     private func configureSession() {
+        guard !isConfigured else { return }
         session.beginConfiguration()
-        session.sessionPreset = .high
 
-        // Find camera (FaceTime HD or built-in wide angle camera)
-        let deviceDiscovery = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera],
-            mediaType: .video,
-            position: .front
-        )
-        let camera = deviceDiscovery.devices.first ?? AVCaptureDevice.default(for: .video)
-
-        if let camera = camera, let input = try? AVCaptureDeviceInput(device: camera) {
-            if session.canAddInput(input) {
-                session.addInput(input)
-            }
+        if session.canSetSessionPreset(.high) {
+            session.sessionPreset = .high
+        } else if session.canSetSessionPreset(.medium) {
+            session.sessionPreset = .medium
         }
 
-        if session.canAddOutput(photoOutput) {
-            session.addOutput(photoOutput)
+        // Pick default camera device
+        if let camera = AVCaptureDevice.default(for: .video),
+           let input = try? AVCaptureDeviceInput(device: camera),
+           session.canAddInput(input) {
+            session.addInput(input)
+        }
+
+        // Setup high-performance video output for instant snapshot capture
+        let dataOutput = AVCaptureVideoDataOutput()
+        dataOutput.alwaysDiscardsLateVideoFrames = true
+        dataOutput.setSampleBufferDelegate(self, queue: videoOutputQueue)
+        if session.canAddOutput(dataOutput) {
+            session.addOutput(dataOutput)
         }
 
         session.commitConfiguration()
         isConfigured = true
     }
 
+    public func updateMirror(_ mirrored: Bool) {
+        if let connection = previewLayer.connection, connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = mirrored
+        }
+    }
+
+    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
+
+    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            self.latestPixelBuffer = pixelBuffer
+        }
+    }
+
+    // MARK: - Photo Capture
+
     public func capturePhoto() {
-        guard session.isRunning else { return }
+        guard session.isRunning, let pixelBuffer = latestPixelBuffer else { return }
 
         // Camera shutter sound & flash
         NSSound(named: "Purr")?.play()
@@ -130,18 +168,9 @@ public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCapt
             }
         }
 
-        let settings = AVCapturePhotoSettings()
-        photoOutput.capturePhoto(with: settings, delegate: self)
-    }
-
-    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        guard error == nil,
-              let data = photo.fileDataRepresentation(),
-              let originalImage = NSImage(data: data) else {
-            return
-        }
-
-        // Apply horizontal mirror if enabled
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+        let originalImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
         let finalImage = isMirrored ? flipImageHorizontally(originalImage) : originalImage
 
         DispatchQueue.main.async { [weak self] in
@@ -151,12 +180,14 @@ public class CameraMirrorService: NSObject, ObservableObject, AVCapturePhotoCapt
                 DropZoneService.shared.addURLs([url])
             }
 
-            // Copy to macOS clipboard
+            // Copy to macOS clipboard (Cmd+V)
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.writeObjects([finalImage])
 
-            self.savedBanner = "📸 Foto tersimpan di Tray & Clipboard!"
+            withAnimation {
+                self.savedBanner = "📸 Foto tersimpan di Tray & Clipboard!"
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
                 if self.savedBanner?.contains("Foto tersimpan") == true {
                     withAnimation { self.savedBanner = nil }

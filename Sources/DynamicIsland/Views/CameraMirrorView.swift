@@ -3,52 +3,50 @@ import AVFoundation
 import AppKit
 
 public struct CameraPreviewView: NSViewRepresentable {
-    public let session: AVCaptureSession
     public let isMirrored: Bool
 
-    public init(session: AVCaptureSession, isMirrored: Bool) {
-        self.session = session
+    public init(isMirrored: Bool) {
         self.isMirrored = isMirrored
     }
 
-    public func makeNSView(context: Context) -> CameraPreviewNSView {
-        let view = CameraPreviewNSView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
-        view.updateMirror(isMirrored)
+    public func makeNSView(context: Context) -> CameraHostingNSView {
+        let view = CameraHostingNSView()
+        view.attachPreviewLayer(CameraMirrorService.shared.previewLayer)
+        CameraMirrorService.shared.updateMirror(isMirrored)
         return view
     }
 
-    public func updateNSView(_ nsView: CameraPreviewNSView, context: Context) {
-        nsView.previewLayer.session = session
-        nsView.updateMirror(isMirrored)
+    public func updateNSView(_ nsView: CameraHostingNSView, context: Context) {
+        nsView.attachPreviewLayer(CameraMirrorService.shared.previewLayer)
+        CameraMirrorService.shared.updateMirror(isMirrored)
     }
 }
 
-public class CameraPreviewNSView: NSView {
-    public let previewLayer = AVCaptureVideoPreviewLayer()
+public class CameraHostingNSView: NSView {
+    private weak var attachedLayer: CALayer?
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
-        layer?.addSublayer(previewLayer)
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
 
-    public override func layout() {
-        super.layout()
+    public func attachPreviewLayer(_ previewLayer: CALayer) {
+        if previewLayer.superlayer !== self.layer {
+            previewLayer.removeFromSuperlayer()
+            layer?.addSublayer(previewLayer)
+        }
+        attachedLayer = previewLayer
         previewLayer.frame = bounds
     }
 
-    public func updateMirror(_ mirrored: Bool) {
-        if let connection = previewLayer.connection, connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = mirrored
-        }
+    public override func layout() {
+        super.layout()
+        attachedLayer?.frame = bounds
     }
 }
 
@@ -110,10 +108,10 @@ public struct CameraMirrorView: View {
                         Image(systemName: "video.slash.fill")
                             .font(.system(size: 26))
                             .foregroundColor(.orange)
-                        Text("Akses Kamera Ditolak")
+                        Text("Akses Kamera Ditolak / Tidak Ditemukan")
                             .font(.system(size: 11.5, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                        Text("Buka Pengaturan Sistem > Privasi & Keamanan > Kamera, lalu aktifkan makiland.")
+                        Text("Buka Pengaturan Sistem > Privasi & Keamanan > Kamera, lalu aktifkan izin untuk makiland.")
                             .font(.system(size: 9.5))
                             .foregroundColor(.white.opacity(0.6))
                             .multilineTextAlignment(.center)
@@ -131,7 +129,7 @@ public struct CameraMirrorView: View {
                     .background(Color.black.opacity(0.55))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 } else {
-                    CameraPreviewView(session: service.session, isMirrored: service.isMirrored)
+                    CameraPreviewView(isMirrored: service.isMirrored)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14)
@@ -181,6 +179,7 @@ public struct CameraMirrorView: View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         service.isMirrored.toggle()
+                        service.updateMirror(service.isMirrored)
                     }
                 } label: {
                     HStack(spacing: 4) {

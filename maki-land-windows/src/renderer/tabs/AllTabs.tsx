@@ -382,6 +382,7 @@ export const CameraMirrorModal: React.FC<{ onClose: () => void }> = ({ onClose }
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          void videoRef.current.play().catch(() => {});
         }
       } catch (err: unknown) {
         console.error('[CameraMirror] Camera access error:', err);
