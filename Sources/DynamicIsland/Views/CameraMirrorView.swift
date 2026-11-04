@@ -151,7 +151,7 @@ public struct CameraMirrorView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 180)
+            .frame(height: 330)
             .padding(.horizontal, 12)
 
             // Bottom Toolbar Controls

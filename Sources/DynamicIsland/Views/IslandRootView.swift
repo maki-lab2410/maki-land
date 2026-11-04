@@ -75,7 +75,7 @@ public class IslandState: ObservableObject {
             return CGSize(width: 660, height: 215)
         }
         if isShowingCameraMirror {
-            return CGSize(width: 660, height: 265)
+            return CGSize(width: 660, height: 420)
         }
         if isShowingVoiceRecorder {
             return CGSize(width: 660, height: 210)

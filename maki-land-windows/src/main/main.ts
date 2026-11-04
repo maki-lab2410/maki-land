@@ -3096,6 +3096,7 @@ fso.DeleteFile WScript.ScriptFullName, True
         break;
       case 'closeMirror':
         this.isMirrorOpen = false;
+        this.setExpanded(false);
         break;
       case 'toggleAutoLaunch':
         this.applyAutoLaunchSetting(!this.isLaunchAtLogin);

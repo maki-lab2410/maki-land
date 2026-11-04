@@ -436,90 +436,118 @@ export const CameraMirrorModal: React.FC<{ onClose: () => void }> = ({ onClose }
   return (
     <div
       style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(0,0,0,0.92)',
-        backdropFilter: 'blur(16px)',
-        borderRadius: 20,
+        width: '100%',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: 10,
         boxSizing: 'border-box',
-        border: ringLight ? '2px solid rgba(255,255,255,0.7)' : '1px solid rgba(255,255,255,0.15)',
-        boxShadow: ringLight
-          ? '0 0 35px rgba(255,255,255,0.3) inset, 0 10px 40px rgba(0,0,0,0.8)'
-          : '0 10px 40px rgba(0,0,0,0.8)',
+        gap: 8,
       }}
     >
-      {/* Mirror Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '0 4px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 13 }}>🪞</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Cermin Kamera (Mirror)</span>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>Cek penampilan / selfie cepat</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <button
-            className="pill-btn"
-            onClick={() => setRingLight(!ringLight)}
-            style={{
-              padding: '2.5px 7px',
-              fontSize: 9,
-              background: ringLight ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)',
-              color: ringLight ? '#fff' : 'rgba(255,255,255,0.6)',
-            }}
-            title="Nyalakan/matikan pencahayaan ring light cermin"
-          >
-            💡 {ringLight ? 'Lampu: ON' : 'Lampu: OFF'}
-          </button>
-          <button
-            className="pill-btn"
-            onClick={() => setIsFlipped(!isFlipped)}
-            style={{
-              padding: '2.5px 7px',
-              fontSize: 9,
-              background: 'rgba(255,255,255,0.08)',
-              color: 'rgba(255,255,255,0.75)',
-            }}
-            title="Balik arah cermin (flip horizontal)"
-          >
-            🔄 {isFlipped ? 'Mirror' : 'Normal'}
-          </button>
-          <button
-            className="pill-btn"
-            onClick={onClose}
-            style={{
-              padding: '2.5px 8px',
-              fontSize: 10,
-              background: 'rgba(239,68,68,0.25)',
-              color: '#f87171',
-            }}
-            title="Tutup Cermin (Kamera mati)"
-          >
-            ✕ Tutup
-          </button>
-        </div>
-      </div>
-
-      {/* Video Viewport */}
+      {/* Header Bar (Parity 1:1 with macOS CameraMirrorView) */}
       <div
         style={{
-          flex: 1,
-          minHeight: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 14px 0',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13 }}>🪞</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#ffffff' }}>Cermin Kamera</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '2px 6px',
+              borderRadius: 99,
+              background: 'rgba(74,222,128,0.18)',
+              color: 'rgba(74,222,128,0.95)',
+              fontSize: 9,
+              fontWeight: 600,
+            }}
+          >
+            <span
+              style={{
+                width: 5.5,
+                height: 5.5,
+                borderRadius: '50%',
+                background: '#4ade80',
+                display: 'inline-block',
+              }}
+            />
+            <span>Live Webcam</span>
+          </div>
+        </div>
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'rgba(255,255,255,0.45)',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 14,
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#ffffff')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)')}
+          title="Tutup Cermin (Kamera mati)"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Video Preview Area (Enlarged to 330px height, full face visible!) */}
+      <div
+        style={{
+          width: '100%',
+          height: 330,
+          flexShrink: 0,
           position: 'relative',
           borderRadius: 14,
           overflow: 'hidden',
           background: '#050505',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          boxSizing: 'border-box',
+          border: ringLight
+            ? '3.5px solid rgba(255,255,255,0.85)'
+            : '1px solid rgba(255,255,255,0.15)',
+          boxShadow: ringLight
+            ? '0 0 24px rgba(255,255,255,0.4), inset 0 0 16px rgba(255,255,255,0.18)'
+            : 'none',
+          transition: 'border 0.2s ease, box-shadow 0.2s ease',
         }}
       >
         {errorMsg ? (
-          <div style={{ padding: 20, textAlign: 'center', color: '#fca5a5', fontSize: 11 }}>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>📷⚠️</div>
-            <div>{errorMsg}</div>
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: 20,
+              textAlign: 'center',
+              color: '#fca5a5',
+              background: 'rgba(0,0,0,0.55)',
+            }}
+          >
+            <div style={{ fontSize: 26 }}>📷⚠️</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#fff' }}>
+              Akses Kamera Ditolak / Tidak Ditemukan
+            </div>
+            <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)', maxWidth: 360 }}>
+              {errorMsg}
+            </div>
           </div>
         ) : (
           <video
@@ -543,61 +571,111 @@ export const CameraMirrorModal: React.FC<{ onClose: () => void }> = ({ onClose }
             style={{
               position: 'absolute',
               inset: 0,
-              background: '#fff',
+              background: '#ffffff',
               opacity: 0.9,
               pointerEvents: 'none',
+              borderRadius: 14,
             }}
           />
         )}
-
-        {/* Toast confirmation */}
-        {toastMsg && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 12,
-              background: 'rgba(0,0,0,0.85)',
-              border: '1px solid rgba(74,222,128,0.5)',
-              color: '#4ade80',
-              padding: '4px 12px',
-              borderRadius: 99,
-              fontSize: 10,
-              fontWeight: 600,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-            }}
-          >
-            {toastMsg}
-          </div>
-        )}
       </div>
 
-      {/* Bottom Shutter Bar */}
+      {/* Bottom Toolbar Controls (Parity 1:1 with macOS CameraMirrorView) */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          marginTop: 8,
-          padding: '2px 0',
+          gap: 8,
+          padding: '0 14px 6px',
+          flexShrink: 0,
         }}
       >
+        {/* Ring Light Button */}
+        <button
+          onClick={() => setRingLight((v) => !v)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '4px 8px',
+            borderRadius: 99,
+            background: ringLight ? 'rgba(234,179,8,0.24)' : 'rgba(255,255,255,0.08)',
+            color: ringLight ? '#eab308' : 'rgba(255,255,255,0.7)',
+            fontSize: 9.5,
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
+          }}
+          title="Nyalakan/matikan lampu pencahayaan cermin"
+        >
+          <span>{ringLight ? '💡' : '🕯️'}</span>
+          <span>{ringLight ? 'Lampu Nyala' : 'Lampu Mati'}</span>
+        </button>
+
+        {/* Mirror Flip Button */}
+        <button
+          onClick={() => setIsFlipped((v) => !v)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '4px 8px',
+            borderRadius: 99,
+            background: 'rgba(168,85,247,0.24)',
+            color: '#c084fc',
+            fontSize: 9.5,
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
+          }}
+          title="Balik orientasi cermin (Flip Horizontal)"
+        >
+          <span>🔄</span>
+          <span>{isFlipped ? 'Cermin (Flip)' : 'Normal'}</span>
+        </button>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Toast confirmation if any */}
+        {toastMsg && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 10px',
+              borderRadius: 99,
+              background: 'rgba(34,197,94,0.25)',
+              color: '#4ade80',
+              fontSize: 9.5,
+              fontWeight: 600,
+            }}
+          >
+            <span>✓</span>
+            <span>{toastMsg}</span>
+          </div>
+        )}
+
+        {/* Photo Capture Button (Selfie) */}
         <button
           onClick={() => void capturePhoto()}
           disabled={isCapturing || Boolean(errorMsg)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
-            padding: '5px 16px',
+            gap: 4,
+            padding: '4.5px 12px',
             borderRadius: 99,
-            background: 'linear-gradient(135deg, #fb923c, #ea580c)',
-            color: '#fff',
+            background: 'linear-gradient(90deg, #ec4899, #a855f7)',
+            color: '#ffffff',
+            fontSize: 10,
             fontWeight: 700,
-            fontSize: 10.5,
             border: 'none',
             cursor: 'pointer',
-            boxShadow: '0 2px 10px rgba(251,146,60,0.35)',
+            boxShadow: '0 2px 8px rgba(236,72,153,0.4)',
+            transition: 'transform 0.1s ease',
           }}
           title="Ambil foto selfie langsung masuk Tray & Clipboard Windows"
         >

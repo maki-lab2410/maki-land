@@ -508,8 +508,8 @@ export interface CacheCleanerState {
   hasCompletedInitialScan: boolean;
 }
 
-export const ISLAND_CANVAS_WIDTH = 720;
-export const ISLAND_CANVAS_HEIGHT = 340;
+export const ISLAND_CANVAS_WIDTH = 740;
+export const ISLAND_CANVAS_HEIGHT = 480;
 export const DESKTOP_NORMAL_WIDTH = 264;
 export const DESKTOP_NORMAL_HEIGHT = 194;
 export const DESKTOP_CHAT_WIDTH = 336;
@@ -528,7 +528,7 @@ export function computeTargetIslandSize(
     return { width: showMini ? 238 : 210, height: 32 };
   }
   if (state.isMirrorOpen) {
-    return { width: 660, height: 265 };
+    return { width: 660, height: 420 };
   }
   if (isVoiceRecorderOpen) {
     return { width: 660, height: 210 };

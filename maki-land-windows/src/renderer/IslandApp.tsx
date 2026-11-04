@@ -428,7 +428,7 @@ export const IslandApp: React.FC = () => {
                 transform: 'translateX(-50%)',
                 width: target.width,
                 height: target.height,
-                padding: '8px 16px 8px',
+                padding: state.isMirrorOpen ? '6px 12px 6px' : '8px 16px 8px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
@@ -437,6 +437,13 @@ export const IslandApp: React.FC = () => {
             >
               {state.isShowingOnboarding ? (
                 <OnboardingModal state={state} />
+              ) : state.isMirrorOpen ? (
+                <CameraMirrorModal onClose={() => void dispatchMaki('closeMirror')} />
+              ) : isVoiceRecorderOpen ? (
+                <VoiceRecorderPanel
+                  onClose={() => setIsVoiceRecorderOpen(false)}
+                  onSaved={() => setIsVoiceRecorderOpen(false)}
+                />
               ) : (
                 <>
                   {/* Top Bar: Horizontal Scrollable Tabs + Quick Actions (macOS 1:1 Parity) */}
@@ -690,56 +697,39 @@ export const IslandApp: React.FC = () => {
                       position: 'relative',
                     }}
                   >
-                    {/* Camera Mirror Overlay (if open) */}
-                    {state.isMirrorOpen && (
-                      <CameraMirrorModal onClose={() => void dispatchMaki('closeMirror')} />
+                    <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                      {activeTab === 'maki-land' && <MakiLandTab state={state} />}
+                      {activeTab === 'Capy' && <CapyHabitatTab state={state} />}
+                      {activeTab === 'Notes' && <NotesTab state={state} />}
+                      {activeTab === 'Launch' && <LauncherTab state={state} />}
+                      {activeTab === 'Tray' && <TrayTab state={state} />}
+                      {activeTab === 'System' && <SystemTab state={state} />}
+                      {activeTab === 'Clipboard' && <ClipboardTab state={state} />}
+                      {activeTab === 'Timer' && <TimerTab state={state} />}
+                    </div>
+
+                    {activeTab !== 'Capy' && (
+                      <ContextualCapyCard tab={activeTab} state={state} />
                     )}
 
-                    {/* Voice Recorder Overlay (if open) */}
-                    {isVoiceRecorderOpen && (
-                      <VoiceRecorderPanel
-                        onClose={() => setIsVoiceRecorderOpen(false)}
-                        onSaved={() => setIsVoiceRecorderOpen(false)}
-                      />
-                    )}
-
-                    {!state.isMirrorOpen && !isVoiceRecorderOpen && (
-                      <>
-                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                          {activeTab === 'maki-land' && <MakiLandTab state={state} />}
-                          {activeTab === 'Capy' && <CapyHabitatTab state={state} />}
-                          {activeTab === 'Notes' && <NotesTab state={state} />}
-                          {activeTab === 'Launch' && <LauncherTab state={state} />}
-                          {activeTab === 'Tray' && <TrayTab state={state} />}
-                          {activeTab === 'System' && <SystemTab state={state} />}
-                          {activeTab === 'Clipboard' && <ClipboardTab state={state} />}
-                          {activeTab === 'Timer' && <TimerTab state={state} />}
-                        </div>
-
-                        {activeTab !== 'Capy' && (
-                          <ContextualCapyCard tab={activeTab} state={state} />
-                        )}
-
-                        {/* Contextual Tip Bubble beside Maki */}
-                        {activeTab !== 'Capy' && state.contextualTip && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              right: 96,
-                              top: 8,
-                              zIndex: 50,
-                              pointerEvents: 'none',
-                            }}
-                          >
-                            <CapySpeechBubble
-                              text={state.contextualTip}
-                              tail="right"
-                              fontSize={9.6}
-                              maxWidth={176}
-                            />
-                          </div>
-                        )}
-                      </>
+                    {/* Contextual Tip Bubble beside Maki */}
+                    {activeTab !== 'Capy' && state.contextualTip && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 96,
+                          top: 8,
+                          zIndex: 50,
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <CapySpeechBubble
+                          text={state.contextualTip}
+                          tail="right"
+                          fontSize={9.6}
+                          maxWidth={176}
+                        />
+                      </div>
                     )}
                   </div>
                 </>

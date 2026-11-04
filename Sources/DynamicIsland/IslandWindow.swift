@@ -241,7 +241,7 @@ public class IslandHostingView: NSHostingView<IslandRootView> {
 
 public class IslandController: NSObject {
     public static let shared = IslandController()
-    public static let canvasSize = CGSize(width: 720, height: 330)
+    public static let canvasSize = CGSize(width: 740, height: 480)
 
     public var panel: IslandPanel?
     public private(set) var auxiliaryPanels: [IslandPanel] = []
