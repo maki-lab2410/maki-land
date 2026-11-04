@@ -345,7 +345,14 @@ export interface SharedAppState {
   isIslandVisible: boolean;
   isExpanded: boolean;
   isShowingOnboarding: boolean;
-  updateAvailable: { version: string; url: string; notes: string } | null;
+  updateAvailable: {
+    version: string;
+    url: string;
+    notes: string;
+    downloadUrl?: string;
+    isDownloading?: boolean;
+    downloadPercent?: number;
+  } | null;
   selectedTab: IslandTab;
   isPinned: boolean;
   isLaunchAtLogin: boolean;

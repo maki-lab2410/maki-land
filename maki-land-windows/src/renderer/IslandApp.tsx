@@ -455,24 +455,37 @@ export const IslandApp: React.FC = () => {
                     {/* Update Badge (if available) */}
                     {state.updateAvailable && (
                       <button
-                        onClick={() => void dispatchMaki('openExternalUrl', { url: state.updateAvailable?.url })}
-                        title={`Pembaruan v${state.updateAvailable.version} tersedia di GitHub!`}
+                        onClick={() => {
+                          if (state.updateAvailable?.isDownloading) return;
+                          void dispatchMaki('applyUpdate');
+                        }}
+                        title={
+                          state.updateAvailable.isDownloading
+                            ? `Sedang mengunduh pembaruan (${state.updateAvailable.downloadPercent || 0}%)...`
+                            : `Pembaruan v${state.updateAvailable.version} tersedia! Klik untuk perbarui otomatis.`
+                        }
                         style={{
-                          padding: '2.5px 7px',
+                          padding: '2.5px 8px',
                           borderRadius: 99,
-                          background: 'rgba(34,197,94,0.30)',
-                          color: '#4ade80',
+                          background: state.updateAvailable.isDownloading
+                            ? 'rgba(59,130,246,0.35)'
+                            : 'rgba(34,197,94,0.30)',
+                          color: state.updateAvailable.isDownloading ? '#93c5fd' : '#4ade80',
                           fontSize: 9,
                           fontWeight: 700,
                           border: 'none',
-                          cursor: 'pointer',
+                          cursor: state.updateAvailable.isDownloading ? 'default' : 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 3,
+                          gap: 3.5,
                         }}
                       >
-                        <span>✨</span>
-                        <span>Update</span>
+                        <span>{state.updateAvailable.isDownloading ? '⏳' : '✨'}</span>
+                        <span>
+                          {state.updateAvailable.isDownloading
+                            ? `Mengunduh ${state.updateAvailable.downloadPercent || 0}%`
+                            : `Update v${state.updateAvailable.version}`}
+                        </span>
                       </button>
                     )}
 

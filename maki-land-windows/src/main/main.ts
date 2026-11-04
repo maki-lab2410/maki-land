@@ -101,7 +101,14 @@ class MakiMainController {
   private isExpanded = false;
   private isShowingOnboarding = false;
   private hasCompletedOnboarding = false;
-  private updateAvailable: { version: string; url: string; notes: string } | null = null;
+  private updateAvailable: {
+    version: string;
+    url: string;
+    notes: string;
+    downloadUrl?: string;
+    isDownloading?: boolean;
+    downloadPercent?: number;
+  } | null = null;
   private isCompactHovering = false;
   private selectedTab: IslandTab = 'maki-land';
   private isPinned = false;
@@ -477,6 +484,9 @@ class MakiMainController {
           version: latestTag,
           url: releaseUrl,
           notes: data.body || '',
+          downloadUrl: installerDownloadUrl || undefined,
+          isDownloading: false,
+          downloadPercent: 0,
         };
         this.scheduleBroadcast();
 
@@ -497,7 +507,7 @@ class MakiMainController {
           if (this.isOnDesktop) {
             this.showDesktopBubble(`🎉 Ada versi baru v${latestTag}! Cek di notch atau tray buat update ya~ 🐾`, 6000);
           }
-          this.studio.showBanner(`Versi baru maki-land v${latestTag} sudah rilis!`, false);
+          this.studio.showBanner(`Versi baru maki-land v${latestTag} sudah rilis! Klik tombol Update untuk perbarui otomatis.`, false);
         }
       } else if (manual) {
         dialog.showMessageBoxSync({
@@ -518,30 +528,95 @@ class MakiMainController {
   }
 
   private async downloadAndApplyWindowsUpdate(url: string) {
-    if (!url.endsWith('.exe')) {
+    const cleanUrl = url.split('?')[0].toLowerCase();
+    if (!cleanUrl.endsWith('.exe')) {
       void shell.openExternal(url);
       return;
     }
-    this.showDesktopBubble('Maki sedang mengunduh pembaruan... ⏳', 10000);
-    this.studio.showBanner(`Mengunduh pembaruan v${this.updateAvailable?.version || ''}...`, true);
+
+    if (this.updateAvailable) {
+      this.updateAvailable.isDownloading = true;
+      this.updateAvailable.downloadPercent = 0;
+      this.scheduleBroadcast();
+    }
+    this.showDesktopBubble('Maki sedang mengunduh pembaruan... ⏳', 25000);
+    this.studio.showBanner(`Mengunduh pembaruan v${this.updateAvailable?.version || ''}...`, false, 25000);
 
     const tempInstaller = path.join(app.getPath('temp'), `makiland_setup_${Date.now()}.exe`);
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buffer = Buffer.from(await res.arrayBuffer());
-      fs.writeFileSync(tempInstaller, buffer);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'application/octet-stream, */*',
+        },
+        redirect: 'follow',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
-      this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 4000);
+      const contentLengthHeader = res.headers.get('content-length');
+      const totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
 
-      // Execute installer with /S (silent update) or launch installer
+      const fileStream = fs.createWriteStream(tempInstaller);
+      let receivedBytes = 0;
+      let lastPercent = 0;
+      let lastBroadcastTime = 0;
+
+      if (res.body) {
+        const reader = res.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            fileStream.write(Buffer.from(value));
+            receivedBytes += value.length;
+            if (totalBytes > 0) {
+              const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+              const now = Date.now();
+              if (pct !== lastPercent && now - lastBroadcastTime > 250) {
+                lastPercent = pct;
+                lastBroadcastTime = now;
+                if (this.updateAvailable) {
+                  this.updateAvailable.downloadPercent = pct;
+                  this.scheduleBroadcast();
+                }
+              }
+            }
+          }
+        }
+        await new Promise<void>((resolve, reject) => {
+          fileStream.end((err?: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      } else {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        fs.writeFileSync(tempInstaller, buffer);
+      }
+
+      if (this.updateAvailable) {
+        this.updateAvailable.downloadPercent = 100;
+        this.updateAvailable.isDownloading = false;
+        this.scheduleBroadcast();
+      }
+
+      this.showDesktopBubble('Memasang pembaruan & memulai ulang... ✨', 5000);
+      this.studio.showBanner('Pembaruan selesai diunduh! Memasang & memulai ulang...', false, 5000);
+
+      // Execute installer with /S (silent update) and NSIS customInstall will relaunch maki-land.exe
       const child = spawn(tempInstaller, ['/S'], { detached: true, stdio: 'ignore' });
       child.unref();
 
       setTimeout(() => {
         app.quit();
-      }, 600);
+      }, 1000);
     } catch (e: any) {
+      if (this.updateAvailable) {
+        this.updateAvailable.isDownloading = false;
+        this.updateAvailable.downloadPercent = 0;
+        this.scheduleBroadcast();
+      }
       dialog.showErrorBox(
         'Gagal Memperbarui',
         `Gagal mengunduh pembaruan otomatis: ${e?.message || e}\nSilakan unduh manual dari GitHub.`
@@ -628,11 +703,7 @@ class MakiMainController {
       },
     });
 
-    if (process.platform === 'darwin') {
-      win.setAlwaysOnTop(true, 'screen-saver');
-    } else {
-      win.setAlwaysOnTop(true);
-    }
+    win.setAlwaysOnTop(true, 'screen-saver');
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setIgnoreMouseEvents(true, { forward: true });
     this.islandIgnoreMouse = true;
@@ -657,9 +728,8 @@ class MakiMainController {
       if (this.isIslandVisible && !win.isDestroyed()) {
         win.show();
         win.showInactive();
-        if (process.platform !== 'darwin') {
-          win.setAlwaysOnTop(true);
-        }
+        win.setAlwaysOnTop(true, 'screen-saver');
+        win.moveTop();
       }
     });
 
@@ -719,11 +789,8 @@ class MakiMainController {
           nodeIntegration: false,
         },
       });
-      if (process.platform === 'darwin') {
-        win.setAlwaysOnTop(true, 'screen-saver');
-      } else {
-        win.setAlwaysOnTop(true);
-      }
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.moveTop();
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       win.setIgnoreMouseEvents(true, { forward: true });
       this.desktopIgnoreMouse = true;
@@ -732,11 +799,8 @@ class MakiMainController {
     } else {
       this.desktopWin.setBounds({ x: clampedX, y: clampedY, width: w, height: h });
       this.desktopWin.showInactive();
-      if (process.platform === 'darwin') {
-        this.desktopWin.setAlwaysOnTop(true, 'screen-saver');
-      } else {
-        this.desktopWin.setAlwaysOnTop(true);
-      }
+      this.desktopWin.setAlwaysOnTop(true, 'screen-saver');
+      this.desktopWin.moveTop();
     }
   }
 
@@ -770,11 +834,8 @@ class MakiMainController {
           nodeIntegration: false,
         },
       });
-      if (process.platform === 'darwin') {
-        win.setAlwaysOnTop(true, 'screen-saver');
-      } else {
-        win.setAlwaysOnTop(true);
-      }
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.moveTop();
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       win.setIgnoreMouseEvents(true, { forward: true });
       // Load desktop.html with ?mascot=moko param so DesktopApp detects companion mode
@@ -791,11 +852,8 @@ class MakiMainController {
     } else {
       this.companionWin.setBounds({ x: cx, y: cy, width: w, height: h });
       this.companionWin.showInactive();
-      if (process.platform === 'darwin') {
-        this.companionWin.setAlwaysOnTop(true, 'screen-saver');
-      } else {
-        this.companionWin.setAlwaysOnTop(true);
-      }
+      this.companionWin.setAlwaysOnTop(true, 'screen-saver');
+      this.companionWin.moveTop();
     }
   }
 
@@ -1229,12 +1287,19 @@ class MakiMainController {
     const margin = 24;
     const tx =
       wa.x + margin + Math.random() * Math.max(40, wa.width - b.width - margin * 2);
-    // Prefer strolling along the cozy lower zone near the Windows Taskbar (80% chance)
-    const nearTaskbar = Math.random() < 0.8;
-    const ty = nearTaskbar
-      ? wa.y + wa.height - b.height - (8 + Math.random() * 48)
-      : wa.y + margin + Math.random() * Math.max(40, wa.height - b.height - margin * 2);
-    this.walkTarget = { x: tx, y: ty };
+    const roll = Math.random();
+    let ty = wa.y + wa.height - b.height - 12;
+    if (roll < 0.45) {
+      // Lower zone near taskbar / bottom of active application
+      ty = wa.y + wa.height - b.height - (8 + Math.random() * 56);
+    } else if (roll < 0.80) {
+      // Mid-screen across active app (e.g. over Chrome webpage, text, documents)
+      ty = wa.y + (wa.height * 0.32) + Math.random() * (wa.height * 0.42);
+    } else {
+      // Upper zone
+      ty = wa.y + margin + Math.random() * Math.max(40, wa.height * 0.28);
+    }
+    this.walkTarget = { x: tx, y: Math.round(ty) };
     this.facingRight = tx >= b.x;
     this.currentAction = 'walking';
     this.scheduleBroadcast();
@@ -2261,6 +2326,22 @@ class MakiMainController {
         void this.syncGoogleICS(this.googleICSUrl);
       }
     }, 30 * 60 * 1000);
+
+    // 8. Re-assert topmost Z-order above all active applications (like Google Chrome, Edge, VS Code)
+    setInterval(() => {
+      if (this.isOnDesktop && this.desktopWin && !this.desktopWin.isDestroyed()) {
+        this.desktopWin.setAlwaysOnTop(true, 'screen-saver');
+        this.desktopWin.moveTop();
+      }
+      if (this.companionWin && !this.companionWin.isDestroyed()) {
+        this.companionWin.setAlwaysOnTop(true, 'screen-saver');
+        this.companionWin.moveTop();
+      }
+      if (this.islandWin && !this.islandWin.isDestroyed()) {
+        this.islandWin.setAlwaysOnTop(true, 'screen-saver');
+        this.islandWin.moveTop();
+      }
+    }, 2000);
   }
 
   private pollClipboard() {
@@ -3122,6 +3203,13 @@ class MakiMainController {
         break;
       case 'checkUpdate':
         void this.checkForGitHubUpdates(true);
+        break;
+      case 'applyUpdate':
+        if (this.updateAvailable?.downloadUrl) {
+          void this.downloadAndApplyWindowsUpdate(this.updateAvailable.downloadUrl);
+        } else {
+          void this.checkForGitHubUpdates(true);
+        }
         break;
     }
     this.scheduleBroadcast();
