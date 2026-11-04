@@ -60,9 +60,56 @@ export function useMakiState(): SharedAppState | null {
     const unsub = window.maki.onStateChange((next) => {
       if (mounted) setState(next);
     });
+
+    // Realtime Native Chromium Battery Telemetry (Zero-latency Windows OS power integration)
+    let batteryInstance: any = null;
+    const syncBattery = () => {
+      if (!mounted || !batteryInstance) return;
+      const level = Math.max(0, Math.min(100, Math.round((batteryInstance.level ?? 1) * 100)));
+      const isCharging = Boolean(batteryInstance.charging);
+
+      // Optimistic local state update for zero-latency UI refresh
+      setState((prev) => {
+        if (!prev) return prev;
+        if (prev.system.batteryLevel === level && prev.system.isCharging === isCharging) {
+          return prev;
+        }
+        return {
+          ...prev,
+          system: {
+            ...prev.system,
+            batteryLevel: level,
+            isCharging,
+            hasBattery: true,
+          },
+        };
+      });
+
+      // Synchronize with Electron Main process and all windows
+      window.maki.dispatch('reportBattery', {
+        level,
+        isCharging,
+        hasBattery: true,
+      }).catch(() => {});
+    };
+
+    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
+      (navigator as any).getBattery().then((b: any) => {
+        if (!mounted) return;
+        batteryInstance = b;
+        syncBattery();
+        b.addEventListener('levelchange', syncBattery);
+        b.addEventListener('chargingchange', syncBattery);
+      }).catch(() => {});
+    }
+
     return () => {
       mounted = false;
       unsub();
+      if (batteryInstance) {
+        batteryInstance.removeEventListener('levelchange', syncBattery);
+        batteryInstance.removeEventListener('chargingchange', syncBattery);
+      }
     };
   }, []);
 

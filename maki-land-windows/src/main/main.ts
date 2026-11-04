@@ -47,6 +47,7 @@ import {
   sendWindowsMediaControl,
   toggleWindowsMicMute,
   copyFileToWindowsClipboard,
+  updateCachedBattery,
 } from './windowsSystemBridge';
 import { StudioService } from './studioService';
 import { GeminiManager } from './geminiService';
@@ -709,6 +710,20 @@ del "${tempInstaller}" >nul 2>&1
     powerMonitor.on('suspend', onLock);
     powerMonitor.on('unlock-screen', onUnlock);
     powerMonitor.on('resume', onUnlock);
+
+    // Instant OS Power Line Event Listeners (AC vs Battery)
+    powerMonitor.on('on-ac', () => {
+      const snap = getSystemMetricsSnapshot();
+      updateCachedBattery({ level: snap.batteryLevel, isCharging: true, hasBattery: snap.hasBattery });
+      this.scheduleBroadcast();
+      void pollWindowsStatusOnce().then(() => this.scheduleBroadcast());
+    });
+    powerMonitor.on('on-battery', () => {
+      const snap = getSystemMetricsSnapshot();
+      updateCachedBattery({ level: snap.batteryLevel, isCharging: false, hasBattery: snap.hasBattery });
+      this.scheduleBroadcast();
+      void pollWindowsStatusOnce().then(() => this.scheduleBroadcast());
+    });
   }
 
   // --- Windows Creation & Click-Through Management ---
@@ -2969,6 +2984,14 @@ del "${tempInstaller}" >nul 2>&1
       case 'expand':
         this.setExpanded(Boolean(p.expanded));
         break;
+      case 'reportBattery': {
+        const lvl = typeof p.level === 'number' ? Math.max(0, Math.min(100, Math.round(p.level))) : 100;
+        const isCharging = Boolean(p.isCharging);
+        const hasBattery = p.hasBattery !== false;
+        updateCachedBattery({ level: lvl, isCharging, hasBattery });
+        this.scheduleBroadcast();
+        break;
+      }
       case 'selectTab':
         this.selectedTab = p.tab as IslandTab;
         if (!this.isExpanded) this.setExpanded(true);

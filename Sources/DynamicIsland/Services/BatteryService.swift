@@ -10,11 +10,25 @@ public class BatteryService: ObservableObject {
     @Published public var timeRemainingFormatted: String = ""
     
     private var timer: Timer?
+    private var powerRunLoopSource: CFRunLoopSource?
     
     private init() {
         updateBatteryInfo()
+        registerPowerSourceNotification()
         timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.updateBatteryInfo()
+        }
+    }
+
+    private func registerPowerSourceNotification() {
+        let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        if let runLoopSource = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context = context else { return }
+            let service = Unmanaged<BatteryService>.fromOpaque(context).takeUnretainedValue()
+            service.updateBatteryInfo()
+        }, context)?.takeRetainedValue() {
+            powerRunLoopSource = runLoopSource
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
     }
     

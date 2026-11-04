@@ -24,6 +24,16 @@ function readCpuSnapshot(): CpuTimesSnapshot {
 let prevCpu: CpuTimesSnapshot = readCpuSnapshot();
 let cachedCpuPercent = 8;
 let cachedBattery = { level: 100, isCharging: true, hasBattery: true };
+let lastLiveBatteryTimestamp = 0;
+
+export function updateCachedBattery(battery: { level: number; isCharging: boolean; hasBattery: boolean }) {
+  cachedBattery = {
+    level: Math.max(0, Math.min(100, Math.round(battery.level))),
+    isCharging: Boolean(battery.isCharging),
+    hasBattery: Boolean(battery.hasBattery),
+  };
+  lastLiveBatteryTimestamp = Date.now();
+}
 let cachedTrack: TrackInfo = {
   title: '',
   artist: '',
@@ -54,14 +64,58 @@ function runPowerShell(script: string, timeoutMs = 3500): Promise<string> {
 // Single lightweight combined PowerShell probe for Windows 10/11 Battery + SMTC Media + Foreground App
 const WINDOWS_STATUS_PS = `
 $ErrorActionPreference = 'SilentlyContinue'
-Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue
 
-$ps = [System.Windows.Forms.SystemInformation]::PowerStatus
-$batPct = [int][Math]::Round($ps.BatteryLifePercent * 100)
-if ($batPct -lt 0 -or $batPct -gt 100) { $batPct = 100 }
-$hasBat = ($ps.BatteryChargeStatus -band [System.Windows.Forms.BatteryChargeStatus]::NoSystemBattery) -eq 0
-$charging = ($ps.PowerLineStatus -eq [System.Windows.Forms.PowerLineStatus]::Online)
+$batPct = 100
+$hasBat = $false
+$charging = $true
+
+# 1. Primary: Modern WinRT Windows.Devices.Power (Windows 10/11 - zero lag, realtime mW)
+try {
+  [Windows.Devices.Power.Battery, Windows.Devices.Power, ContentType = WindowsRuntime] | Out-Null
+  $bReport = [Windows.Devices.Power.Battery]::AggregateBattery.GetReport()
+  if ($bReport -and $bReport.FullChargeCapacityInMilliwattHours -gt 0) {
+    $batPct = [int][Math]::Round(($bReport.RemainingCapacityInMilliwattHours / $bReport.FullChargeCapacityInMilliwattHours) * 100)
+    if ($batPct -lt 0) { $batPct = 0 }
+    elseif ($batPct -gt 100) { $batPct = 100 }
+    $hasBat = $true
+    # Status: 1 = NotPresent, 2 = Discharging, 3 = Idle, 4 = Charging
+    $st = [int]$bReport.Status
+    $charging = ($st -eq 3 -or $st -eq 4)
+  }
+} catch {}
+
+# 2. Secondary Fallback: Win32_Battery (Direct ACPI EC Query via CIM)
+if (-not $hasBat) {
+  try {
+    $cim = Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cim -and $cim.EstimatedChargeRemaining) {
+      $batPct = [int]$cim.EstimatedChargeRemaining
+      if ($batPct -lt 0) { $batPct = 0 }
+      elseif ($batPct -gt 100) { $batPct = 100 }
+      $hasBat = $true
+      $charging = ($cim.BatteryStatus -ne 1 -and $cim.BatteryStatus -ne 2)
+    }
+  } catch {}
+}
+
+# 3. Tertiary Fallback: System.Windows.Forms SystemInformation
+if (-not $hasBat) {
+  try {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    $ps = [System.Windows.Forms.SystemInformation]::PowerStatus
+    if ($ps) {
+      $hasBat = ($ps.BatteryChargeStatus -band [System.Windows.Forms.BatteryChargeStatus]::NoSystemBattery) -eq 0
+      if ($hasBat) {
+        $pVal = [int][Math]::Round($ps.BatteryLifePercent * 100)
+        if ($pVal -ge 0 -and $pVal -le 100) {
+          $batPct = $pVal
+        }
+        $charging = ($ps.PowerLineStatus -eq [System.Windows.Forms.PowerLineStatus]::Online)
+      }
+    }
+  } catch {}
+}
 
 $title = ''
 $artist = ''
@@ -157,23 +211,12 @@ if (-not $title) {
   } catch {}
 }
 
+# Lightweight Foreground Process detection WITHOUT dynamic C# compiler overhead
 $fgName = ''
 try {
-  if (-not ("Win32Fg" -as [type])) {
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class Win32Fg {
-      [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-      [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-    }
-"@
-  }
-  $hwnd = [Win32Fg]::GetForegroundWindow()
-  $pidOut = [uint32]0
-  [Win32Fg]::GetWindowThreadProcessId($hwnd, [ref]$pidOut) | Out-Null
-  if ($pidOut -gt 0) {
-    $fgName = (Get-Process -Id $pidOut).ProcessName
+  $activeProc = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
+  if ($activeProc) {
+    $fgName = $activeProc.ProcessName
   }
 } catch {}
 
@@ -202,14 +245,19 @@ export async function pollWindowsStatusOnce(): Promise<void> {
   if (!isWin || psPollingBusy) return;
   psPollingBusy = true;
   try {
-    const out = await runPowerShell(WINDOWS_STATUS_PS, 3200);
+    const out = await runPowerShell(WINDOWS_STATUS_PS, 2800);
     if (out) {
       const parsed = JSON.parse(out);
-      cachedBattery = {
-        level: typeof parsed.batPct === 'number' ? parsed.batPct : 100,
-        isCharging: Boolean(parsed.charging),
-        hasBattery: parsed.hasBat !== false,
-      };
+      const isRecentLive = Date.now() - lastLiveBatteryTimestamp < 15000;
+      
+      // Update battery cache: prioritize live Chromium battery API if reported recently
+      if (!isRecentLive || !cachedBattery.hasBattery) {
+        cachedBattery = {
+          level: typeof parsed.batPct === 'number' ? parsed.batPct : 100,
+          isCharging: Boolean(parsed.charging),
+          hasBattery: parsed.hasBat !== false,
+        };
+      }
       cachedTrack = {
         title: String(parsed.title || ''),
         artist: String(parsed.artist || ''),
