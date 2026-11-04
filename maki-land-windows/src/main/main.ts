@@ -1158,9 +1158,9 @@ fso.DeleteFile WScript.ScriptFullName, True
     // 1. Dynamic Island window click-through
     if (this.islandWin && !this.islandWin.isDestroyed() && this.isIslandVisible) {
       if (this.isNativeFileDragging) {
-        if (this.islandIgnoreMouse !== false) {
-          this.islandIgnoreMouse = false;
-          this.islandWin.setIgnoreMouseEvents(false);
+        if (this.islandIgnoreMouse !== true) {
+          this.islandIgnoreMouse = true;
+          this.islandWin.setIgnoreMouseEvents(true, { forward: true });
         }
       } else {
         const hitNotch = this.isPointInsideActiveNotch(cursor) || this.isHeldForDrop;
@@ -2687,9 +2687,6 @@ fso.DeleteFile WScript.ScriptFullName, True
 
     ipcMain.on('maki:prepare-drag', () => {
       this.isNativeFileDragging = true;
-      if (this.islandWin && !this.islandWin.isDestroyed()) {
-        this.islandWin.setIgnoreMouseEvents(false);
-      }
     });
 
     ipcMain.on('maki:start-drag', (ev, filePath: string) => {
@@ -2699,7 +2696,8 @@ fso.DeleteFile WScript.ScriptFullName, True
 
       this.isNativeFileDragging = true;
       if (this.islandWin && !this.islandWin.isDestroyed()) {
-        this.islandWin.setIgnoreMouseEvents(false);
+        this.islandIgnoreMouse = true;
+        this.islandWin.setIgnoreMouseEvents(true, { forward: true });
       }
 
       let dragIcon: Electron.NativeImage | string = '';

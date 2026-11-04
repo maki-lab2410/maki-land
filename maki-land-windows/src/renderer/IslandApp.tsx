@@ -2,10 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ALL_ISLAND_TABS,
   computeTargetIslandSize,
-  getCategoryForTab,
-  ISLAND_CATEGORY_GROUPS,
   ISLAND_CANVAS_HEIGHT,
   ISLAND_CANVAS_WIDTH,
+  IslandTab,
 } from '../shared/types';
 import { dispatchMaki, extractDroppedFilePaths, useMakiState } from './bridge';
 import { Capybara2DCanvas } from './components/Capybara2DCanvas';
@@ -22,6 +21,7 @@ import {
   SystemTab,
   TimerTab,
   TrayTab,
+  VoiceRecorderPanel,
 } from './tabs/AllTabs';
 
 function buildNotchSvgPath(w: number, h: number, bottomRadius: number, earRadius: number): string {
@@ -111,10 +111,19 @@ function useAnimatedNotch(
 
 export const IslandApp: React.FC = () => {
   const state = useMakiState();
+  const [activeTab, setActiveTab] = useState<IslandTab>(state?.selectedTab || 'maki-land');
+  const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [compactHover, setCompactHover] = useState(false);
   const [clock, setClock] = useState(() =>
     new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   );
+
+  // Synchronize optimistic local tab state whenever the backend tab state changes
+  useEffect(() => {
+    if (state?.selectedTab && state.selectedTab !== activeTab) {
+      setActiveTab(state.selectedTab);
+    }
+  }, [state?.selectedTab]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -130,6 +139,10 @@ export const IslandApp: React.FC = () => {
           void dispatchMaki('toggleGeminiSettings');
         } else if (state.isNotchChatMode) {
           void dispatchMaki('closeNotchChat');
+        } else if (state.isMirrorOpen) {
+          void dispatchMaki('closeMirror');
+        } else if (isVoiceRecorderOpen) {
+          setIsVoiceRecorderOpen(false);
         } else {
           void dispatchMaki('expand', { expanded: false });
         }
@@ -137,10 +150,20 @@ export const IslandApp: React.FC = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state?.isExpanded, state?.isShowingGeminiSettings, state?.isNotchChatMode]);
+  }, [state?.isExpanded, state?.isShowingGeminiSettings, state?.isNotchChatMode, state?.isMirrorOpen, isVoiceRecorderOpen]);
+
+  const handleSelectTab = (tabId: IslandTab) => {
+    if (isVoiceRecorderOpen) setIsVoiceRecorderOpen(false);
+    if (state?.isMirrorOpen) void dispatchMaki('closeMirror');
+    // 0ms optimistic switch for snappy, instant response matching macOS
+    setActiveTab(tabId);
+    void dispatchMaki('selectTab', { tab: tabId });
+  };
 
   // Safe defaults ensure hooks are ALWAYS invoked unconditionally (React Rules of Hooks compliant)
-  const target = state ? computeTargetIslandSize(state) : { width: 210, height: 32 };
+  const target = state
+    ? computeTargetIslandSize(state, activeTab, isVoiceRecorderOpen)
+    : { width: 210, height: 32 };
   const earRadius = state?.isExpanded ? 10 : 8;
   const bottomRadius = state?.isExpanded ? 22 : compactHover ? 15 : 14;
   const targetInnerW = (state?.isExpanded ? target.width : target.width + (compactHover ? 16 : 0)) || 210;
@@ -416,258 +439,245 @@ export const IslandApp: React.FC = () => {
                 <OnboardingModal state={state} />
               ) : (
                 <>
-                  {/* Top Bar: Grouped Categories + Sub-tabs + Quick Actions */}
-                  {(() => {
-                    const activeCategory = getCategoryForTab(state.selectedTab);
-                    const activeGroup =
-                      ISLAND_CATEGORY_GROUPS.find((g) => g.id === activeCategory) ||
-                      ISLAND_CATEGORY_GROUPS[0];
-
-                    return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        {/* Primary Category Groups */}
-                        <div
-                          className="no-scrollbar"
-                          style={{
-                            display: 'flex',
-                            gap: 3.5,
-                            alignItems: 'center',
-                          }}
-                        >
-                          {ISLAND_CATEGORY_GROUPS.map((group) => {
-                            const isGroupActive = group.id === activeCategory;
-                            return (
-                              <button
-                                key={group.id}
-                                onClick={() => {
-                                  if (!isGroupActive) {
-                                    void dispatchMaki('selectTab', { tab: group.tabs[0].id });
-                                  }
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 3,
-                                  padding: '3.5px 7.5px',
-                                  borderRadius: 99,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  background: isGroupActive
-                                    ? 'rgba(255,255,255,0.22)'
-                                    : 'rgba(255,255,255,0.06)',
-                                  color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.55)',
-                                  whiteSpace: 'nowrap',
-                                  border: isGroupActive
-                                    ? '1px solid rgba(255,255,255,0.25)'
-                                    : '1px solid transparent',
-                                  cursor: 'pointer',
-                                }}
-                                title={`Kategori: ${group.label}`}
-                              >
-                                <span style={{ fontSize: 10 }}>{group.icon}</span>
-                                <span>{group.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Sub-tabs divider & pills (if category has > 1 tab) */}
-                        {activeGroup.tabs.length > 1 && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              borderLeft: '1px solid rgba(255,255,255,0.12)',
-                              paddingLeft: 6,
-                            }}
-                          >
-                            {activeGroup.tabs.map((tab) => {
-                              const isTabActive = state.selectedTab === tab.id;
-                              return (
-                                <button
-                                  key={tab.id}
-                                  onClick={() => void dispatchMaki('selectTab', { tab: tab.id })}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    padding: '2.5px 7px',
-                                    borderRadius: 99,
-                                    fontSize: 9.2,
-                                    fontWeight: 600,
-                                    background: isTabActive
-                                      ? 'rgba(59,130,246,0.32)'
-                                      : 'rgba(255,255,255,0.04)',
-                                    color: isTabActive ? '#93c5fd' : 'rgba(255,255,255,0.5)',
-                                    whiteSpace: 'nowrap',
-                                    border: isTabActive
-                                      ? '1px solid rgba(59,130,246,0.45)'
-                                      : 'none',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <span>{tab.icon}</span>
-                                  <span>{tab.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        <div style={{ flex: 1 }} />
-
-                        {/* Update Badge (if available) */}
-                        {state.updateAvailable && (
+                  {/* Top Bar: Horizontal Scrollable Tabs + Quick Actions (macOS 1:1 Parity) */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      width: '100%',
+                      padding: '0 2px',
+                    }}
+                  >
+                    {/* Horizontal Scrollable Tabs */}
+                    <div
+                      className="no-scrollbar"
+                      style={{
+                        display: 'flex',
+                        gap: 5,
+                        alignItems: 'center',
+                        overflowX: 'auto',
+                        flex: 1,
+                        minWidth: 0,
+                        paddingBottom: 2,
+                      }}
+                    >
+                      {ALL_ISLAND_TABS.map((tab) => {
+                        const isTabActive = activeTab === tab.id;
+                        return (
                           <button
-                            onClick={() => {
-                              if (state.updateAvailable?.isDownloading) return;
-                              void dispatchMaki('applyUpdate');
-                            }}
-                            title={
-                              state.updateAvailable.isDownloading
-                                ? `Sedang mengunduh pembaruan (${state.updateAvailable.downloadPercent || 0}%)...`
-                                : `Pembaruan v${state.updateAvailable.version} tersedia! Klik untuk perbarui otomatis.`
-                            }
+                            key={tab.id}
+                            onClick={() => handleSelectTab(tab.id)}
                             style={{
-                              padding: '2.5px 8px',
-                              borderRadius: 99,
-                              background: state.updateAvailable.isDownloading
-                                ? 'rgba(59,130,246,0.35)'
-                                : 'rgba(34,197,94,0.30)',
-                              color: state.updateAvailable.isDownloading ? '#93c5fd' : '#4ade80',
-                              fontSize: 9,
-                              fontWeight: 700,
-                              border: 'none',
-                              cursor: state.updateAvailable.isDownloading ? 'default' : 'pointer',
-                              display: 'flex',
+                              display: 'inline-flex',
                               alignItems: 'center',
                               gap: 3.5,
+                              padding: '4.5px 9px',
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              background: isTabActive ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)',
+                              color: isTabActive ? '#ffffff' : 'rgba(255,255,255,0.58)',
+                              whiteSpace: 'nowrap',
+                              border: isTabActive ? '1px solid rgba(255,255,255,0.20)' : '1px solid transparent',
+                              cursor: 'pointer',
+                              transition: 'background 0.15s ease, color 0.15s ease',
+                              flexShrink: 0,
                             }}
+                            title={tab.label}
                           >
-                            <span>{state.updateAvailable.isDownloading ? '⏳' : '✨'}</span>
-                            <span>
-                              {state.updateAvailable.isDownloading
-                                ? `Mengunduh ${state.updateAvailable.downloadPercent || 0}%`
-                                : `Update v${state.updateAvailable.version}`}
-                            </span>
+                            <span style={{ fontSize: 10 }}>{tab.icon}</span>
+                            <span style={{ letterSpacing: -0.1 }}>{tab.label}</span>
                           </button>
-                        )}
+                        );
+                      })}
+                    </div>
 
-                        {/* Quick Mirror / Camera Button */}
+                    {/* Quick Action Buttons on Right (macOS 1:1 Parity) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                      {/* Update Badge (if available) */}
+                      {state.updateAvailable && (
                         <button
-                          onClick={() => void dispatchMaki('toggleMirror')}
-                          title="Buka Cermin Kamera (Mirror Webcam)"
+                          onClick={() => {
+                            if (state.updateAvailable?.isDownloading) return;
+                            void dispatchMaki('applyUpdate');
+                          }}
+                          title={
+                            state.updateAvailable.isDownloading
+                              ? `Sedang mengunduh pembaruan (${state.updateAvailable.downloadPercent || 0}%)...`
+                              : `Pembaruan v${state.updateAvailable.version} tersedia!`
+                          }
                           style={{
                             padding: '3px 7px',
                             borderRadius: 99,
-                            background: state.isMirrorOpen
-                              ? 'rgba(168,85,247,0.38)'
-                              : 'rgba(168,85,247,0.18)',
-                            color: state.isMirrorOpen ? '#f3e8ff' : '#c084fc',
-                            fontSize: 9.5,
+                            background: state.updateAvailable.isDownloading
+                              ? 'rgba(59,130,246,0.35)'
+                              : 'rgba(34,197,94,0.30)',
+                            color: state.updateAvailable.isDownloading ? '#93c5fd' : '#4ade80',
+                            fontSize: 8.8,
                             fontWeight: 700,
                             border: 'none',
-                            cursor: 'pointer',
+                            cursor: state.updateAvailable.isDownloading ? 'default' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 2.5,
+                            gap: 3,
                           }}
                         >
-                          <span>🪞</span>
-                          <span>Mirror</span>
+                          <span>{state.updateAvailable.isDownloading ? '⏳' : '✨'}</span>
+                          <span>
+                            {state.updateAvailable.isDownloading
+                              ? `${state.updateAvailable.downloadPercent || 0}%`
+                              : 'Update'}
+                          </span>
                         </button>
+                      )}
 
-                        {/* Quick Voice Recorder Button */}
-                        <button
-                          onClick={() => void dispatchMaki('selectTab', { tab: 'Tray' })}
-                          title="Buka Perekam Suara (Voice Memo)"
-                          style={{
-                            padding: '3.5px 7.5px',
-                            borderRadius: 99,
-                            background: 'rgba(239,68,68,0.18)',
-                            color: '#f87171',
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2.5,
-                          }}
-                        >
-                          <span>🎙️</span>
-                          <span>Rekam</span>
-                        </button>
+                      {/* Quick Mirror / Camera Button */}
+                      <button
+                        onClick={() => {
+                          setIsVoiceRecorderOpen(false);
+                          void dispatchMaki('toggleMirror');
+                        }}
+                        title="Buka Cermin Kamera (Mirror Webcam)"
+                        style={{
+                          padding: '3.5px 7px',
+                          borderRadius: 99,
+                          background: state.isMirrorOpen
+                            ? 'rgba(168,85,247,0.38)'
+                            : 'rgba(168,85,247,0.18)',
+                          color: state.isMirrorOpen ? '#ffffff' : 'rgba(216,180,254,0.9)',
+                          fontSize: 9,
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <span>🪞</span>
+                        <span>Mirror</span>
+                      </button>
 
-                        {/* Help / Onboarding Guide Button */}
-                        <button
-                          onClick={() => void dispatchMaki('openOnboarding')}
-                          title="Panduan Penggunaan & Setup API Key"
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 99,
-                            color: 'rgba(255,255,255,0.6)',
-                            fontSize: 12,
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ❓
-                        </button>
+                      {/* Quick Voice Recorder Button */}
+                      <button
+                        onClick={() => {
+                          if (state.isMirrorOpen) void dispatchMaki('closeMirror');
+                          setIsVoiceRecorderOpen((v) => !v);
+                        }}
+                        title="Rekam Memo Suara (Voice Recorder)"
+                        style={{
+                          padding: '3.5px 7px',
+                          borderRadius: 99,
+                          background: isVoiceRecorderOpen
+                            ? 'rgba(239,68,68,0.38)'
+                            : 'rgba(239,68,68,0.18)',
+                          color: isVoiceRecorderOpen ? '#ffffff' : 'rgba(248,113,113,0.9)',
+                          fontSize: 9,
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <span>🎙️</span>
+                        <span>Rekam</span>
+                      </button>
 
-                        {/* Global Mic Mute Button */}
-                        <button
-                          onClick={() => void dispatchMaki('toggleMicMute')}
-                          title="Mute / Unmute Mikrofon Windows"
-                          style={{
-                            padding: '3.5px 7px',
-                            borderRadius: 99,
-                            background: state.isMicMuted
-                              ? 'rgba(239,68,68,0.25)'
-                              : 'rgba(255,255,255,0.08)',
-                            color: state.isMicMuted ? '#ef4444' : 'rgba(255,255,255,0.65)',
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {state.isMicMuted ? '🔇 Muted' : '🎙️'}
-                        </button>
+                      {/* Help / Onboarding Guide Button */}
+                      <button
+                        onClick={() => void dispatchMaki('openOnboarding')}
+                        title="Panduan Penggunaan & Setup API Key"
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 99,
+                          color: 'rgba(255,255,255,0.55)',
+                          fontSize: 11,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        ❓
+                      </button>
 
-                        {/* Pin Button */}
-                        <button
-                          onClick={() => void dispatchMaki('togglePin')}
-                          title={state.isPinned ? 'Lepas Pin (Auto-minimize aktif)' : 'Pin agar tetap terbuka'}
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 99,
-                            color: state.isPinned ? '#fb923c' : 'rgba(255,255,255,0.4)',
-                            fontSize: 11,
-                          }}
-                        >
-                          📌
-                        </button>
+                      {/* Global Mic Mute Button */}
+                      <button
+                        onClick={() => void dispatchMaki('toggleMicMute')}
+                        title="Mute / Unmute Mikrofon Windows"
+                        style={{
+                          padding: state.isMicMuted ? '4px 7px' : '4px 5px',
+                          borderRadius: 99,
+                          background: state.isMicMuted
+                            ? 'rgba(239,68,68,0.25)'
+                            : 'rgba(255,255,255,0.08)',
+                          color: state.isMicMuted ? '#ef4444' : 'rgba(255,255,255,0.55)',
+                          fontSize: 9,
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <span>{state.isMicMuted ? '🔇' : '🎙️'}</span>
+                        {state.isMicMuted && <span>Muted</span>}
+                      </button>
 
-                        {/* Minimize Chevron */}
-                        <button
-                          onClick={() => void dispatchMaki('expand', { expanded: false })}
-                          title="Tutup Detail (Esc)"
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 99,
-                            color: 'rgba(255,255,255,0.55)',
-                            fontSize: 11,
-                          }}
-                        >
-                          ⌃
-                        </button>
-                      </div>
-                    );
-                  })()}
+                      {/* Pin Button */}
+                      <button
+                        onClick={() => void dispatchMaki('togglePin')}
+                        title={state.isPinned ? 'Lepas Pin (Auto-minimize aktif)' : 'Pin agar tetap terbuka'}
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 99,
+                          color: state.isPinned ? '#fb923c' : 'rgba(255,255,255,0.35)',
+                          fontSize: 11,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        📌
+                      </button>
+
+                      {/* Minimize Chevron */}
+                      <button
+                        onClick={() => void dispatchMaki('expand', { expanded: false })}
+                        title="Tutup Detail (Esc)"
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 99,
+                          color: 'rgba(255,255,255,0.45)',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        ⌃
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Main Content + Contextual Maki Card */}
                   <div
@@ -684,39 +694,52 @@ export const IslandApp: React.FC = () => {
                     {state.isMirrorOpen && (
                       <CameraMirrorModal onClose={() => void dispatchMaki('closeMirror')} />
                     )}
-                    <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                      {state.selectedTab === 'maki-land' && <MakiLandTab state={state} />}
-                      {state.selectedTab === 'Capy' && <CapyHabitatTab state={state} />}
-                      {state.selectedTab === 'Notes' && <NotesTab state={state} />}
-                      {state.selectedTab === 'Launch' && <LauncherTab state={state} />}
-                      {state.selectedTab === 'Tray' && <TrayTab state={state} />}
-                      {state.selectedTab === 'System' && <SystemTab state={state} />}
-                      {state.selectedTab === 'Clipboard' && <ClipboardTab state={state} />}
-                      {state.selectedTab === 'Timer' && <TimerTab state={state} />}
-                    </div>
 
-                    {state.selectedTab !== 'Capy' && (
-                      <ContextualCapyCard tab={state.selectedTab} state={state} />
+                    {/* Voice Recorder Overlay (if open) */}
+                    {isVoiceRecorderOpen && (
+                      <VoiceRecorderPanel
+                        onClose={() => setIsVoiceRecorderOpen(false)}
+                        onSaved={() => setIsVoiceRecorderOpen(false)}
+                      />
                     )}
 
-                    {/* Contextual Tip Bubble beside Maki */}
-                    {state.selectedTab !== 'Capy' && state.contextualTip && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          right: 96,
-                          top: 8,
-                          zIndex: 50,
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <CapySpeechBubble
-                          text={state.contextualTip}
-                          tail="right"
-                          fontSize={9.6}
-                          maxWidth={176}
-                        />
-                      </div>
+                    {!state.isMirrorOpen && !isVoiceRecorderOpen && (
+                      <>
+                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                          {activeTab === 'maki-land' && <MakiLandTab state={state} />}
+                          {activeTab === 'Capy' && <CapyHabitatTab state={state} />}
+                          {activeTab === 'Notes' && <NotesTab state={state} />}
+                          {activeTab === 'Launch' && <LauncherTab state={state} />}
+                          {activeTab === 'Tray' && <TrayTab state={state} />}
+                          {activeTab === 'System' && <SystemTab state={state} />}
+                          {activeTab === 'Clipboard' && <ClipboardTab state={state} />}
+                          {activeTab === 'Timer' && <TimerTab state={state} />}
+                        </div>
+
+                        {activeTab !== 'Capy' && (
+                          <ContextualCapyCard tab={activeTab} state={state} />
+                        )}
+
+                        {/* Contextual Tip Bubble beside Maki */}
+                        {activeTab !== 'Capy' && state.contextualTip && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: 96,
+                              top: 8,
+                              zIndex: 50,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            <CapySpeechBubble
+                              text={state.contextualTip}
+                              tail="right"
+                              fontSize={9.6}
+                              maxWidth={176}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </>

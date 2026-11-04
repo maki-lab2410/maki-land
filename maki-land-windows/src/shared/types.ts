@@ -12,11 +12,11 @@ export const ALL_ISLAND_TABS: { id: IslandTab; label: string; icon: string }[] =
   { id: 'maki-land', label: 'maki-land', icon: '✨' },
   { id: 'Capy', label: 'Capy', icon: '🐾' },
   { id: 'Notes', label: 'Notes', icon: '📝' },
-  { id: 'Launch', label: 'Launch', icon: '🚀' },
+  { id: 'Launch', label: 'Launch', icon: '📱' },
   { id: 'Tray', label: 'Tray', icon: '📥' },
   { id: 'System', label: 'System', icon: '📊' },
   { id: 'Clipboard', label: 'Clipboard', icon: '📋' },
-  { id: 'Timer', label: 'Timer', icon: '⏳' },
+  { id: 'Timer', label: 'Timer', icon: '⏱️' },
 ];
 
 export type IslandCategory = 'home' | 'files' | 'notes' | 'system';
@@ -515,7 +515,11 @@ export const DESKTOP_NORMAL_HEIGHT = 194;
 export const DESKTOP_CHAT_WIDTH = 336;
 export const DESKTOP_CHAT_HEIGHT = 376;
 
-export function computeTargetIslandSize(state: SharedAppState): { width: number; height: number } {
+export function computeTargetIslandSize(
+  state: SharedAppState,
+  overrideTab?: IslandTab,
+  isVoiceRecorderOpen?: boolean
+): { width: number; height: number } {
   if (state.isShowingOnboarding) {
     return { width: 680, height: 260 };
   }
@@ -523,7 +527,14 @@ export function computeTargetIslandSize(state: SharedAppState): { width: number;
     const showMini = state.showInCompactNotch && !state.isOnDesktop;
     return { width: showMini ? 238 : 210, height: 32 };
   }
-  switch (state.selectedTab) {
+  if (state.isMirrorOpen) {
+    return { width: 660, height: 265 };
+  }
+  if (isVoiceRecorderOpen) {
+    return { width: 660, height: 210 };
+  }
+  const tab = overrideTab || state.selectedTab;
+  switch (tab) {
     case 'Tray': {
       const studio = state.droppedItems.find((i) => i.id === state.activeStudioItemId);
       if (studio) {
@@ -549,5 +560,7 @@ export function computeTargetIslandSize(state: SharedAppState): { width: number;
       return { width: 660, height: 198 };
     case 'Timer':
       return { width: 660, height: 158 };
+    default:
+      return { width: 660, height: 160 };
   }
 }

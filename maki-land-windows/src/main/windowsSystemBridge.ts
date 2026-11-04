@@ -1,6 +1,8 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { clipboard } from 'electron';
 import { SystemMetrics, TrackInfo } from '../shared/types';
 
 const isWin = process.platform === 'win32';
@@ -364,10 +366,29 @@ export async function copyFileToWindowsClipboard(filePath: string): Promise<bool
   if (!isWin) return false;
   try {
     const normalized = path.win32 ? path.win32.normalize(path.resolve(filePath)) : path.resolve(filePath);
+    if (!fs.existsSync(normalized)) return false;
+
+    // 1. Instant native Win32 CF_HDROP clipboard write via Electron buffer (0ms latency)
+    // Allows immediate Ctrl+V paste into Windows Explorer, Desktop, folders, and messaging apps
+    try {
+      const dropFilesHeader = Buffer.alloc(20);
+      dropFilesHeader.writeUInt32LE(20, 0); // pFiles offset (20 bytes)
+      dropFilesHeader.writeUInt32LE(0, 4);  // pt.x = 0
+      dropFilesHeader.writeUInt32LE(0, 8);  // pt.y = 0
+      dropFilesHeader.writeUInt32LE(0, 12); // fNC = 0
+      dropFilesHeader.writeUInt32LE(1, 16); // fWide = 1 (Unicode UTF-16LE)
+
+      // Double null-terminated UTF-16LE file path string
+      const filePathBuffer = Buffer.from(normalized + '\0\0', 'utf16le');
+      const hDrop = Buffer.concat([dropFilesHeader, filePathBuffer]);
+      clipboard.writeBuffer('CF_HDROP', hDrop);
+    } catch (clipErr) {
+      console.warn('[copyFileToWindowsClipboard] Native CF_HDROP write failed:', clipErr);
+    }
+
+    // 2. Also register image / file drop list via background PowerShell (non-blocking)
     const escaped = normalized.replace(/'/g, "''");
     const isImage = /\.(png|jpe?g|bmp|gif|webp)$/i.test(normalized);
-    // Win32 CF_HDROP clipboard format via PowerShell 5.1 / 7 compatible .NET Forms API
-    // SetDataObject($data, $true) ensures the clipboard content persists after the PowerShell process exits
     const ps = `
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Windows.Forms
@@ -384,7 +405,7 @@ if ('${isImage ? 'true' : 'false'}' -eq 'true') {
 }
 [System.Windows.Forms.Clipboard]::SetDataObject($data, $true)
 `;
-    await runPowerShell(ps, 3000);
+    void runPowerShell(ps, 3000).catch(() => {});
     return true;
   } catch (err) {
     console.error('[copyFileToWindowsClipboard] Error:', err);
